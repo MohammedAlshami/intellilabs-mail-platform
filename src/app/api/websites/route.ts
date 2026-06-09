@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/db";
+import { getDb } from "@/db";
 import { websites } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 export async function GET() {
+  const db = await getDb();
   const all = await db.select().from(websites);
   return NextResponse.json(all);
 }
 
 export async function POST(req: NextRequest) {
+  const db = await getDb();
   const data = await req.json();
   const id = data.id || String(Date.now());
   await db.insert(websites).values({
@@ -29,6 +31,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
+  const db = await getDb();
   const data = await req.json();
   await db.update(websites).set({
     name: data.name,

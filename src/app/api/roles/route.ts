@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/db";
+import { getDb } from "@/db";
 import { roles } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 export async function GET() {
+  const db = await getDb();
   const all = await db.select().from(roles);
   return NextResponse.json(all);
 }
 
 export async function POST(req: NextRequest) {
+  const db = await getDb();
   const data = await req.json();
   const id = data.id || String(Date.now());
   await db.insert(roles).values({
@@ -24,6 +26,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
+  const db = await getDb();
   const data = await req.json();
   await db.update(roles).set({
     name: data.name,
