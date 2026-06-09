@@ -1,6 +1,6 @@
 "use client";
 
-import { Paperclip, Send, Mail as MailIcon, Globe, Users } from "lucide-react";
+import { Paperclip, Send, Mail as MailIcon, Globe, Users, ShieldOff, LayoutDashboard, History, AlertTriangle, Bot, ScrollText, BarChart3, ShieldCheck } from "lucide-react";
 import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
 
@@ -23,13 +23,21 @@ import {
 } from "@tabler/icons-react";
 import { useMail } from "@/components/sidebar-04/mail-context";
 import { NavUser } from "@/components/sidebar-04/nav-user";
+import { useAiPanel } from "@/contexts/ai-panel-context";
 
 const pageRoutes = [
+  { title: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
   { title: "Mail", icon: IconMailbox, path: "/mail" },
   { title: "Campaigns", icon: Send, path: "/campaign" },
   { title: "Email List", icon: MailIcon, path: "/email-list" },
+  { title: "Sending History", icon: History, path: "/sending-history" },
+  { title: "Bounce Monitor", icon: AlertTriangle, path: "/bounce-monitor" },
   { title: "Websites", icon: Globe, path: "/websites" },
   { title: "Leads", icon: Users, path: "/leads" },
+  { title: "Removal List", icon: ShieldOff, path: "/removal-list" },
+  { title: "Audit Trail", icon: ScrollText, path: "/audit-trail" },
+  { title: "Reports", icon: BarChart3, path: "/reports" },
+  { title: "Roles", icon: ShieldCheck, path: "/roles" },
 ];
 
 const user = {
@@ -43,6 +51,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const router = useRouter();
   const [query, setQuery] = React.useState("");
   const { mails, loading, setSelectedMail } = useMail();
+  const { toggle: toggleAi } = useAiPanel();
 
   const filteredMails = React.useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -103,6 +112,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarGroup>
         </SidebarContent>
         <SidebarFooter>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton onClick={toggleAi} className="text-gray-500 hover:text-gray-700">
+                <Bot className="size-4" />
+                <span>AI Assistant</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
           <NavUser user={user} />
         </SidebarFooter>
       </Sidebar>

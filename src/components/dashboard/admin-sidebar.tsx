@@ -12,7 +12,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, Users, CreditCard, Receipt, Contact, BarChart3, LogOut, Mail, Send } from 'lucide-react';
+import { LayoutDashboard, Users, CreditCard, Receipt, Contact, BarChart3, LogOut, Mail, Send, ShieldOff } from 'lucide-react';
 import { Logo } from './logo';
 import type { Route } from './nav-main';
 import DashboardNavigation from './nav-main';
@@ -35,6 +35,12 @@ const adminRoutes: Route[] = [
     title: 'Emails',
     icon: <Mail className="size-4" />,
     link: '/admin/emails',
+  },
+  {
+    id: 'removal-list',
+    title: 'Removal List',
+    icon: <ShieldOff className="size-4" />,
+    link: '/admin/removal-list',
   },
   {
     id: 'users',
@@ -97,7 +103,7 @@ export function AdminSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton asChild>
-              <a href="/login" className="flex items-center gap-2 text-gray-500 hover:text-gray-700">
+              <a href="/" className="flex items-center gap-2 text-gray-500 hover:text-gray-700">
                 <LogOut className="size-4" />
                 <span>Logout</span>
               </a>

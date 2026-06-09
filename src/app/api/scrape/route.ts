@@ -18,11 +18,13 @@ export async function POST(req: NextRequest) {
 
   const domain = url.replace(/https?:\/\//, "").split("/")[0].split("?")[0];
 
-  // Extract emails via TypeScript crawler
+  // Step 1: Extract emails (uses cheerio + Playwright fallback internally)
   const emails = await extractEmails(domain);
 
-  // Extract business info via LangChain agent
+  // Step 2: Extract page text with cheerio for the AI agent
   let name = "", summary = "", description = "", services: string[] = [];
+  let text = "";
+
   try {
     const res = await fetch(url, {
       headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
@@ -32,12 +34,23 @@ export async function POST(req: NextRequest) {
     $("script, style, nav, footer, header, iframe, noscript, meta, link, svg").remove();
     $("br").replaceWith(" ");
     $("td, th, li, p, div, h1, h2, h3, h4, h5, h6, span, a").after(" ");
-    const text = $("body").text().replace(/\s+/g, " ").trim().slice(0, 15000);
+    text = $("body").text().replace(/\s+/g, " ").trim();
 
-    if (!text) {
-      return NextResponse.json({ error: "Empty page" }, { status: 500 });
+    // Also grab title and meta description as fallback
+    const title = $("title").text().trim();
+    const metaDesc = $("meta[name='description']").attr("content") || "";
+    if (text.length < 100 && (title || metaDesc)) {
+      text = [title, metaDesc].filter(Boolean).join(" | ") + " | " + text;
     }
+  } catch (e: any) {
+    return NextResponse.json({ error: `Fetch failed: ${e.message}` }, { status: 500 });
+  }
 
+  if (!text || text.length < 20) {
+    return NextResponse.json({ status: "done", name: "", description: "", summary: "", services: [], emails });
+  }
+
+  try {
     const model = new ChatOpenAI({
       model: "openai/gpt-4o-mini",
       configuration: { baseURL: "https://openrouter.ai/api/v1" },
@@ -52,7 +65,7 @@ export async function POST(req: NextRequest) {
     });
 
     const result = await agent.invoke({
-      messages: [{ role: "user", content: `Website content:\n\n${text.slice(0, 12000)}` }],
+      messages: [{ role: "user", content: `Website content from ${url}:\n\n${text.slice(0, 15000)}` }],
     });
 
     const data = result.structuredResponse as z.infer<typeof WebsiteSchema>;
