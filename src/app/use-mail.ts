@@ -1,13 +1,26 @@
 import { atom, useAtom } from "jotai"
 
-import { Mail, mails } from "../app/data"
+export type Folder =
+  | "inbox"
+  | "drafts"
+  | "sent"
+  | "junk"
+  | "trash"
+  | "archive"
+  | "social"
+  | "updates"
+  | "forums"
+  | "shopping"
+  | "promotions"
 
 type Config = {
-  selected: Mail["id"] | null
+  selected: string | null
+  folder: Folder
 }
 
 const configAtom = atom<Config>({
-  selected: mails[0].id,
+  selected: null,
+  folder: "inbox",
 })
 
 export function useMail() {

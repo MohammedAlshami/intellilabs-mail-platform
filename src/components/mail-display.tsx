@@ -1,13 +1,17 @@
-import addDays from "date-fns/addDays"
-import addHours from "date-fns/addHours"
-import format from "date-fns/format"
-import nextSaturday from "date-fns/nextSaturday"
+import { useEffect, useState } from "react"
+import { addDays } from "date-fns/addDays"
+import { addHours } from "date-fns/addHours"
+import { format } from "date-fns/format"
+import { nextSaturday } from "date-fns/nextSaturday"
 import {
   Archive,
   ArchiveX,
+  ArrowLeft,
   Clock,
+  Download,
   Forward,
   MoreVertical,
+  Paperclip,
   Reply,
   ReplyAll,
   Trash2,
@@ -42,7 +46,9 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { AttachmentPreview } from "@/components/attachment-preview"
 import { Mail } from "../app/data"
+import { useMail } from "../app/use-mail"
 
 interface MailDisplayProps {
   mail: Mail | null
@@ -50,14 +56,43 @@ interface MailDisplayProps {
 
 export function MailDisplay({ mail }: MailDisplayProps) {
   const today = new Date()
+  const [, setMail] = useMail()
+  const [fullMail, setFullMail] = useState<Mail | null>(null)
+  const [previewAttachment, setPreviewAttachment] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (mail?.id) {
+      setFullMail(null)
+      fetch(`/api/mails/${mail.id}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.error) return
+          setFullMail(data)
+        })
+        .catch(console.error)
+    } else {
+      setFullMail(null)
+    }
+  }, [mail?.id])
+
+  const display = fullMail ?? mail
 
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center p-2">
         <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="md:hidden"
+            onClick={() => setMail((prev) => ({ ...prev, selected: null }))}
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span className="sr-only">Back</span>
+          </Button>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" disabled={!mail}>
+              <Button variant="ghost" size="icon" disabled={!display}>
                 <Archive className="h-4 w-4" />
                 <span className="sr-only">Archive</span>
               </Button>
@@ -66,7 +101,7 @@ export function MailDisplay({ mail }: MailDisplayProps) {
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" disabled={!mail}>
+              <Button variant="ghost" size="icon" disabled={!display}>
                 <ArchiveX className="h-4 w-4" />
                 <span className="sr-only">Move to junk</span>
               </Button>
@@ -75,7 +110,7 @@ export function MailDisplay({ mail }: MailDisplayProps) {
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" disabled={!mail}>
+              <Button variant="ghost" size="icon" disabled={!display}>
                 <Trash2 className="h-4 w-4" />
                 <span className="sr-only">Move to trash</span>
               </Button>
@@ -87,7 +122,7 @@ export function MailDisplay({ mail }: MailDisplayProps) {
             <Popover>
               <PopoverTrigger asChild>
                 <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" disabled={!mail}>
+                  <Button variant="ghost" size="icon" disabled={!display}>
                     <Clock className="h-4 w-4" />
                     <span className="sr-only">Snooze</span>
                   </Button>
@@ -146,7 +181,7 @@ export function MailDisplay({ mail }: MailDisplayProps) {
         <div className="ml-auto flex items-center gap-2">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" disabled={!mail}>
+              <Button variant="ghost" size="icon" disabled={!display}>
                 <Reply className="h-4 w-4" />
                 <span className="sr-only">Reply</span>
               </Button>
@@ -155,7 +190,7 @@ export function MailDisplay({ mail }: MailDisplayProps) {
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" disabled={!mail}>
+              <Button variant="ghost" size="icon" disabled={!display}>
                 <ReplyAll className="h-4 w-4" />
                 <span className="sr-only">Reply all</span>
               </Button>
@@ -164,7 +199,7 @@ export function MailDisplay({ mail }: MailDisplayProps) {
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" disabled={!mail}>
+              <Button variant="ghost" size="icon" disabled={!display}>
                 <Forward className="h-4 w-4" />
                 <span className="sr-only">Forward</span>
               </Button>
@@ -175,7 +210,7 @@ export function MailDisplay({ mail }: MailDisplayProps) {
         <Separator orientation="vertical" className="mx-2 h-6" />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" disabled={!mail}>
+            <Button variant="ghost" size="icon" disabled={!display}>
               <MoreVertical className="h-4 w-4" />
               <span className="sr-only">More</span>
             </Button>
@@ -189,36 +224,55 @@ export function MailDisplay({ mail }: MailDisplayProps) {
         </DropdownMenu>
       </div>
       <Separator />
-      {mail ? (
+      {display ? (
         <div className="flex flex-1 flex-col">
           <div className="flex items-start p-4">
             <div className="flex items-start gap-4 text-sm">
               <Avatar>
-                <AvatarImage alt={mail.name} />
+                <AvatarImage alt={display.name} />
                 <AvatarFallback>
-                  {mail.name
+                  {display.name
                     .split(" ")
                     .map((chunk) => chunk[0])
                     .join("")}
                 </AvatarFallback>
               </Avatar>
               <div className="grid gap-1">
-                <div className="font-semibold">{mail.name}</div>
-                <div className="line-clamp-1 text-xs">{mail.subject}</div>
+                <div className="font-semibold">{display.name}</div>
+                <div className="line-clamp-1 text-xs">{display.subject}</div>
                 <div className="line-clamp-1 text-xs">
-                  <span className="font-medium">Reply-To:</span> {mail.email}
+                  <span className="font-medium">Reply-To:</span> {display.email}
                 </div>
               </div>
             </div>
-            {mail.date && (
+            {display.date && (
               <div className="ml-auto text-xs text-muted-foreground">
-                {format(new Date(mail.date), "PPpp")}
+                {format(new Date(display.date), "PPpp")}
               </div>
             )}
           </div>
           <Separator />
+          {display.attachments && display.attachments.length > 0 && (
+            <div className="flex flex-wrap gap-2 px-4 pt-4">
+              {display.attachments.map((att) => (
+                <button
+                  key={att.attachmentId}
+                  onClick={() => setPreviewAttachment(att.attachmentId)}
+                  className="inline-flex items-center gap-2 rounded-md border bg-muted/50 px-3 py-2 text-sm hover:bg-muted transition-colors"
+                >
+                  <Paperclip className="h-4 w-4 shrink-0" />
+                  <span className="truncate max-w-[200px]">{att.filename ?? "unnamed"}</span>
+                  {att.size != null && (
+                    <span className="text-xs text-muted-foreground shrink-0">
+                      {formatSize(att.size)}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="flex-1 whitespace-pre-wrap p-4 text-sm">
-            {mail.text}
+            {display.text}
           </div>
           <Separator className="mt-auto" />
           <div className="p-4">
@@ -226,7 +280,7 @@ export function MailDisplay({ mail }: MailDisplayProps) {
               <div className="grid gap-4">
                 <Textarea
                   className="p-4"
-                  placeholder={`Reply ${mail.name}...`}
+                  placeholder={`Reply ${display.name}...`}
                 />
                 <div className="flex items-center">
                   <Label
@@ -253,6 +307,24 @@ export function MailDisplay({ mail }: MailDisplayProps) {
           No message selected
         </div>
       )}
+      {previewAttachment && display?.attachments && (() => {
+        const att = display.attachments.find((a) => a.attachmentId === previewAttachment)
+        if (!att) return null
+        return (
+          <AttachmentPreview
+            key={att.attachmentId}
+            attachment={{ ...att, messageId: display.id }}
+            open={!!previewAttachment}
+            onOpenChange={(open) => { if (!open) setPreviewAttachment(null) }}
+          />
+        )
+      })()}
     </div>
   )
+}
+
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes}B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`
 }

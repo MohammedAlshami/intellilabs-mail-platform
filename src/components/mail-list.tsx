@@ -1,5 +1,6 @@
 import { ComponentProps } from "react"
-import formatDistanceToNow from "date-fns/formatDistanceToNow"
+import { formatDistanceToNow } from "date-fns/formatDistanceToNow"
+import { Paperclip } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
@@ -38,6 +39,9 @@ export function MailList({ items }: MailListProps) {
                   <div className="font-semibold">{item.name}</div>
                   {!item.read && (
                     <span className="flex h-2 w-2 rounded-full bg-blue-600" />
+                  )}
+                  {item.hasAttachments && (
+                    <Paperclip className="h-3 w-3 text-muted-foreground shrink-0" />
                   )}
                 </div>
                 <div
