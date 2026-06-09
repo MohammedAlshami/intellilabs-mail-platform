@@ -10,8 +10,8 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       <SidebarProvider>
         <div className="flex h-dvh w-full">
           <AppSidebar />
-          <SidebarInset>
-            <div className="flex-1 rounded-xl border m-2">
+          <SidebarInset className="flex flex-col overflow-y-auto">
+            <div className="mx-auto w-full max-w-[1024px] px-6 pt-12 pb-24">
               {children}
             </div>
           </SidebarInset>

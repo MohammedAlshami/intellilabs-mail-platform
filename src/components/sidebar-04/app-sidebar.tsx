@@ -27,7 +27,7 @@ import { useMail } from "@/components/sidebar-04/mail-context";
 import { NavUser } from "@/components/sidebar-04/nav-user";
 
 const pageRoutes = [
-  { title: "Mail", icon: IconMailbox, path: "/" },
+  { title: "Mail", icon: IconMailbox, path: "/mail" },
   { title: "Campaigns", icon: Send, path: "/campaign" },
   { title: "Email List", icon: MailIcon, path: "/email-list" },
 ];
@@ -117,24 +117,26 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
-          <SidebarGroup>
-            <SidebarGroupContent className="px-1.5 md:px-0">
-              <SidebarMenu>
-                {navMain.map((item) => (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton
-                      onClick={() => setActiveItem(item)}
-                      isActive={activeItem?.title === item.title}
-                      className="px-2.5 md:px-2"
-                    >
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
+          {pathname === "/mail" && (
+            <SidebarGroup>
+              <SidebarGroupContent className="px-1.5 md:px-0">
+                <SidebarMenu>
+                  {navMain.map((item) => (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton
+                        onClick={() => setActiveItem(item)}
+                        isActive={activeItem?.title === item.title}
+                        className="px-2.5 md:px-2"
+                      >
+                        <item.icon />
+                        <span>{item.title}</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          )}
           <SidebarGroup>
             <SidebarGroupLabel className="px-1.5 md:px-0 text-xs">
               Labels
