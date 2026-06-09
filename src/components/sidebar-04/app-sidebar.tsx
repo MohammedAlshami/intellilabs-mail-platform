@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, Flag, Paperclip, Send, Mail as MailIcon, LayoutDashboard } from "lucide-react";
+import { Paperclip, Send, Mail as MailIcon, Globe, Users } from "lucide-react";
 import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
 
@@ -19,8 +19,6 @@ import {
 } from "@/components/ui/sidebar";
 import {
   IconBrandAmongUs,
-  IconCarambola,
-  IconHourglassHigh,
   IconMailbox,
 } from "@tabler/icons-react";
 import { useMail } from "@/components/sidebar-04/mail-context";
@@ -30,21 +28,8 @@ const pageRoutes = [
   { title: "Mail", icon: IconMailbox, path: "/mail" },
   { title: "Campaigns", icon: Send, path: "/campaign" },
   { title: "Email List", icon: MailIcon, path: "/email-list" },
-];
-
-const navMain = [
-  { title: "Inbox", icon: IconMailbox, isActive: true },
-  { title: "Starred", icon: IconCarambola, isActive: false },
-  { title: "Important", icon: Flag, isActive: false },
-  { title: "Scheduled", icon: IconHourglassHigh, isActive: false },
-  { title: "Archive", icon: Archive, isActive: false },
-];
-
-const labels = [
-  { title: "Personal", color: "bg-green-400 dark:bg-green-300" },
-  { title: "Work", color: "bg-blue-400 dark:bg-blue-300" },
-  { title: "Travel", color: "bg-orange-400 dark:bg-orange-300" },
-  { title: "Receipts", color: "bg-purple-400 dark:bg-purple-300" },
+  { title: "Websites", icon: Globe, path: "/websites" },
+  { title: "Leads", icon: Users, path: "/leads" },
 ];
 
 const user = {
@@ -56,7 +41,6 @@ const user = {
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
   const router = useRouter();
-  const [activeItem, setActiveItem] = React.useState(navMain[0]);
   const [query, setQuery] = React.useState("");
   const { mails, loading, setSelectedMail } = useMail();
 
@@ -117,51 +101,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
-          {pathname === "/mail" && (
-            <SidebarGroup>
-              <SidebarGroupContent className="px-1.5 md:px-0">
-                <SidebarMenu>
-                  {navMain.map((item) => (
-                    <SidebarMenuItem key={item.title}>
-                      <SidebarMenuButton
-                        onClick={() => setActiveItem(item)}
-                        isActive={activeItem?.title === item.title}
-                        className="px-2.5 md:px-2"
-                      >
-                        <item.icon />
-                        <span>{item.title}</span>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          )}
-          <SidebarGroup>
-            <SidebarGroupLabel className="px-1.5 md:px-0 text-xs">
-              Labels
-            </SidebarGroupLabel>
-            <SidebarGroupContent className="px-1.5 md:px-0">
-              <SidebarMenu>
-                {labels.map((label) => (
-                  <SidebarMenuItem key={label.title}>
-                    <SidebarMenuButton asChild className="px-2.5 md:px-2">
-                      <div className="flex items-center gap-3">
-                        <div className={`h-3 w-3 rounded ${label.color}`}></div>
-                        <span>{label.title}</span>
-                      </div>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
         </SidebarContent>
         <SidebarFooter>
           <NavUser user={user} />
         </SidebarFooter>
       </Sidebar>
 
+      {pathname === "/mail" && (
       <Sidebar
         collapsible="none"
         className="hidden flex-1 border-r md:flex min-w-96"
@@ -169,7 +115,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <SidebarHeader className="gap-3.5 border-b p-4">
           <div className="flex w-full items-center justify-between">
             <div className="text-foreground text-base font-medium">
-              {activeItem?.title}
+              Inbox
             </div>
           </div>
           <SidebarInput
@@ -216,6 +162,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarGroup>
         </SidebarContent>
       </Sidebar>
+      )}
     </div>
   );
 }
