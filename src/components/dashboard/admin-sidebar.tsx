@@ -12,7 +12,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, Users, CreditCard, Receipt, Contact, BarChart3, LogOut } from 'lucide-react';
+import { LayoutDashboard, Users, CreditCard, Receipt, Contact, BarChart3, LogOut, Mail, Send } from 'lucide-react';
 import { Logo } from './logo';
 import type { Route } from './nav-main';
 import DashboardNavigation from './nav-main';
@@ -23,6 +23,18 @@ const adminRoutes: Route[] = [
     title: 'Dashboard',
     icon: <LayoutDashboard className="size-4" />,
     link: '/admin',
+  },
+  {
+    id: 'campaigns',
+    title: 'Campaigns',
+    icon: <Send className="size-4" />,
+    link: '/admin/campaigns',
+  },
+  {
+    id: 'emails',
+    title: 'Emails',
+    icon: <Mail className="size-4" />,
+    link: '/admin/emails',
   },
   {
     id: 'users',

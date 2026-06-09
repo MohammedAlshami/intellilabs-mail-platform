@@ -1,7 +1,8 @@
 "use client";
 
-import { Archive, Flag, Paperclip } from "lucide-react";
+import { Archive, Flag, Paperclip, Send, Mail as MailIcon, LayoutDashboard } from "lucide-react";
 import * as React from "react";
+import { usePathname, useRouter } from "next/navigation";
 
 import {
   Sidebar,
@@ -25,6 +26,12 @@ import {
 import { useMail } from "@/components/sidebar-04/mail-context";
 import { NavUser } from "@/components/sidebar-04/nav-user";
 
+const pageRoutes = [
+  { title: "Mail", icon: IconMailbox, path: "/" },
+  { title: "Campaigns", icon: Send, path: "/campaign" },
+  { title: "Email List", icon: MailIcon, path: "/email-list" },
+];
+
 const navMain = [
   { title: "Inbox", icon: IconMailbox, isActive: true },
   { title: "Starred", icon: IconCarambola, isActive: false },
@@ -47,6 +54,8 @@ const user = {
 };
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const pathname = usePathname();
+  const router = useRouter();
   const [activeItem, setActiveItem] = React.useState(navMain[0]);
   const [query, setQuery] = React.useState("");
   const { mails, loading, setSelectedMail } = useMail();
@@ -73,7 +82,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton size="lg" asChild className="md:h-8 md:p-0">
-                <a href="#">
+                <a href="/">
                   <div className="bg-sidebar-accent text-sidebar-accent-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
                     <IconBrandAmongUs className="size-4" />
                   </div>
@@ -87,6 +96,27 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarMenu>
         </SidebarHeader>
         <SidebarContent>
+          <SidebarGroup>
+            <SidebarGroupLabel className="px-1.5 md:px-0 text-xs">
+              Navigation
+            </SidebarGroupLabel>
+            <SidebarGroupContent className="px-1.5 md:px-0">
+              <SidebarMenu>
+                {pageRoutes.map((route) => (
+                  <SidebarMenuItem key={route.path}>
+                    <SidebarMenuButton
+                      onClick={() => router.push(route.path)}
+                      isActive={pathname === route.path}
+                      className="px-2.5 md:px-2"
+                    >
+                      <route.icon />
+                      <span>{route.title}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
           <SidebarGroup>
             <SidebarGroupContent className="px-1.5 md:px-0">
               <SidebarMenu>

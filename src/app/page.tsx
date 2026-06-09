@@ -2,9 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { Paperclip, Download } from "lucide-react";
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
-import { AppSidebar } from "@/components/sidebar-04/app-sidebar";
-import { MailProvider, useMail, type Mail, type Attachment } from "@/components/sidebar-04/mail-context";
+import MainLayout from "@/components/main-layout";
+import { useMail, type Mail, type Attachment } from "@/components/sidebar-04/mail-context";
 
 function AttachmentPreview({ attachment, messageId, open, onOpenChange }: {
   attachment: Attachment;
@@ -145,25 +144,14 @@ function MailApp() {
       .finally(() => setLoading(false));
   }, []);
 
-  return (
-    <SidebarProvider>
-      <div className="flex h-dvh w-full">
-        <AppSidebar />
-        <SidebarInset>
-          <div className="flex-1 rounded-xl border m-2">
-            <MailPreview />
-          </div>
-        </SidebarInset>
-      </div>
-    </SidebarProvider>
-  );
+  return <MailPreview />;
 }
 
 export default function Page() {
   return (
-    <MailProvider>
+    <MainLayout>
       <MailApp />
-    </MailProvider>
+    </MainLayout>
   );
 }
 
