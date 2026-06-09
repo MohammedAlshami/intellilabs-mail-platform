@@ -1,17 +1,54 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { ExternalLink, Mail, Phone, ArrowLeft } from 'lucide-react';
 import MainLayout from '@/components/main-layout';
-import { getWebsiteById, getLeadsByWebsiteId } from '@/lib/data';
+import type { Website } from '@/lib/data';
+
+function getLeadsFromWebsite(website: Website) {
+  const leads: { id: string; type: 'email' | 'phone'; value: string }[] = [];
+  if (website.emails) {
+    website.emails.split(',').map(e => e.trim()).filter(Boolean).forEach((e, i) => {
+      leads.push({ id: `${website.id}-email-${i}`, type: 'email' as const, value: e });
+    });
+  }
+  if (website.phones) {
+    website.phones.split(',').map(p => p.trim()).filter(Boolean).forEach((p, i) => {
+      leads.push({ id: `${website.id}-phone-${i}`, type: 'phone' as const, value: p });
+    });
+  }
+  return leads;
+}
 
 export default function WebsiteDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [tab, setTab] = useState<'info' | 'leads'>('info');
+  const [website, setWebsite] = useState<Website | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const website = getWebsiteById(id);
-  const leads = getLeadsByWebsiteId(id);
+  useEffect(() => {
+    fetch(`/api/websites/${id}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) return;
+        setWebsite({
+          ...data,
+          services: typeof data.services === 'string' ? JSON.parse(data.services) : data.services,
+          isHealthcare: Boolean(data.isHealthcare),
+        });
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  if (loading) {
+    return (
+      <MainLayout>
+        <div className="text-center text-gray-400 py-16">Loading...</div>
+      </MainLayout>
+    );
+  }
 
   if (!website) {
     return (
@@ -20,6 +57,8 @@ export default function WebsiteDetailPage() {
       </MainLayout>
     );
   }
+
+  const leads = getLeadsFromWebsite(website);
 
   return (
     <MainLayout>
@@ -61,7 +100,7 @@ export default function WebsiteDetailPage() {
             <div><span className="text-gray-400 block text-[11px] uppercase tracking-wider mb-0.5">Description</span><p className="text-gray-700 leading-relaxed">{website.description}</p></div>
           )}
           {website.services && website.services.length > 0 && (
-            <div><span className="text-gray-400 block text-[11px] uppercase tracking-wider mb-0.5">Services</span><ul className="list-disc list-inside text-gray-700 space-y-1">{website.services.map((s, i) => <li key={i}>{s}</li>)}</ul></div>
+            <div><span className="text-gray-400 block text-[11px] uppercase tracking-wider mb-0.5">Services</span><ul className="list-disc list-inside text-gray-700 space-y-1">{website.services.map((s: string, i: number) => <li key={i}>{s}</li>)}</ul></div>
           )}
           <div className="grid grid-cols-2 gap-6 pt-2">
             <div><span className="text-gray-400 block text-[11px] uppercase tracking-wider mb-0.5">Extracted Emails</span><span className="text-gray-700">{website.emails || 'None'}</span></div>

@@ -26,22 +26,16 @@ graph_config = {
 }
 
 prompt = """
-Visit the website and extract the following information:
+Extract from this website and return ONLY valid JSON (no other text):
 
-1. Business/company name
-2. What the business is about (a short summary)
-3. A brief description of what they do
-4. Services they provide (list as many as you can find)
-5. All email addresses found on the site
-6. All phone numbers found on the site
+{
+  "name": "Company name",
+  "summary": "Short summary of what they do",
+  "description": "Brief description",
+  "services": ["service1", "service2"]
+}
 
-Return the result as a JSON object with these fields:
-- name (string)
-- summary (string) - what the business is about
-- description (string) - brief description of what they do
-- services (array of strings) - services they provide
-- emails (array of strings) - email addresses found
-- phones (array of strings) - phone numbers found
+Use these exact keys. Value types must match exactly (string, string, string, array of strings).
 """
 
 try:

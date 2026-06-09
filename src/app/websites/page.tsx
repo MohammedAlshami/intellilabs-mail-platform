@@ -1,75 +1,91 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Eye, ChevronLeft, ChevronRight, ExternalLink, ArrowUpRight } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight, ExternalLink, ArrowUpRight, MoreHorizontal, Trash2, Eye } from 'lucide-react';
 import MainLayout from '@/components/main-layout';
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetClose,
 } from '@/components/ui/sheet';
-import seedWebsites, { type Website } from '@/lib/data';
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
+} from '@/components/ui/dropdown-menu';
+import type { Website } from '@/lib/data';
 
 const PAGE_SIZE = 10;
 
 export default function WebsitesPage() {
   const router = useRouter();
-  const [websites, setWebsites] = useState<Website[]>(seedWebsites);
+  const [websites, setWebsites] = useState<Website[]>([]);
+
+  const fetchWebsites = useCallback(async () => {
+    try {
+      const res = await fetch('/api/websites');
+      const data = await res.json();
+      setWebsites(data.map((w: any) => ({ ...w, services: typeof w.services === 'string' ? JSON.parse(w.services) : w.services })));
+    } catch {}
+  }, []);
+
+  useEffect(() => { fetchWebsites(); }, [fetchWebsites]);
+
+  // Poll every 5s while any website is being crawled
+  useEffect(() => {
+    if (websites.some(w => w.scrapeStatus === 'scraping')) {
+      const interval = setInterval(fetchWebsites, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [websites, fetchWebsites]);
   const [page, setPage] = useState(0);
   const [viewWebsite, setViewWebsite] = useState<Website | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [addUrl, setAddUrl] = useState('');
-  const [addName, setAddName] = useState('');
-  const [addCategory, setAddCategory] = useState('');
-  const [addHealthcare, setAddHealthcare] = useState(false);
-  const [addEmails, setAddEmails] = useState('');
-  const [addPhones, setAddPhones] = useState('');
+
+  const handleDelete = async (id: string) => {
+    await fetch(`/api/websites/${id}`, { method: 'DELETE' });
+    fetchWebsites();
+  };
 
   const totalPages = Math.ceil(websites.length / PAGE_SIZE);
   const paged = websites.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   const handleAdd = async () => {
-    if (!addUrl || !addName) return;
+    if (!addUrl) return;
     const id = String(Date.now());
-    const newWebsite: Website = {
-      id,
-      url: addUrl,
-      name: addName,
-      category: addCategory || 'Uncategorized',
-      isHealthcare: addHealthcare,
-      emails: addEmails,
-      phones: addPhones,
-      scrapeStatus: 'scraping',
-      createdAt: new Date().toISOString(),
-    };
-    setWebsites([newWebsite, ...websites]);
+    const domain = addUrl.replace(/https?:\/\//, "").split("/")[0].split("?")[0];
+    const suggName = domain.replace("www.", "").split(".")[0].charAt(0).toUpperCase() + domain.replace("www.", "").split(".")[0].slice(1);
+
+    // Save to DB immediately with scraping status
+    await fetch('/api/websites', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, url: addUrl, name: suggName, scrapeStatus: 'scraping' }),
+    });
+
     setShowAdd(false);
     setAddUrl('');
-    setAddName('');
-    setAddCategory('');
-    setAddHealthcare(false);
-    setAddEmails('');
-    setAddPhones('');
+    fetchWebsites();
 
-    // Trigger scraping in background
+    // Run crawl + scrape
     try {
       const res = await fetch('/api/scrape', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: addUrl, websiteId: id }),
+        body: JSON.stringify({ url: addUrl }),
       });
       if (res.ok) {
         const data = await res.json();
-        setWebsites(prev => prev.map(w =>
-          w.id === id
-            ? { ...w, scrapeStatus: 'done', emails: data.emails?.join(', ') || w.emails, phones: data.phones?.join(', ') || w.phones, category: data.category || w.category, isHealthcare: data.isHealthcare ?? w.isHealthcare, description: data.description || data.summary, summary: data.summary, services: data.services }
-            : w
-        ));
+        await fetch('/api/websites', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, scrapeStatus: 'done', emails: data.emails?.join(', ') || '', name: data.name || '', description: data.description || data.summary || '', summary: data.summary, services: data.services }),
+        });
       } else {
-        setWebsites(prev => prev.map(w => w.id === id ? { ...w, scrapeStatus: 'error' } : w));
+        await fetch('/api/websites', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, scrapeStatus: 'error' }) });
       }
     } catch {
-      setWebsites(prev => prev.map(w => w.id === id ? { ...w, scrapeStatus: 'error' } : w));
+      await fetch('/api/websites', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, scrapeStatus: 'error' }) });
     }
+    fetchWebsites();
   };
 
   return (
@@ -117,9 +133,21 @@ export default function WebsitesPage() {
                   <td className="py-3 px-5 text-gray-500">{w.phones}</td>
                   <td className="py-3 px-5">{scrapeStatusBadge(w.scrapeStatus)}</td>
                   <td className="py-3 px-5 text-right">
-                    <button onClick={() => setViewWebsite(w)} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition">
-                      <Eye className="size-3.5" />
-                    </button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition">
+                          <MoreHorizontal className="size-3.5" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="min-w-[120px]">
+                        <DropdownMenuItem onClick={() => setViewWebsite(w)}>
+                          <Eye className="size-3.5 mr-2" /> View
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleDelete(w.id)} className="text-red-600">
+                          <Trash2 className="size-3.5 mr-2" /> Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </td>
                 </tr>
               ))
@@ -146,36 +174,17 @@ export default function WebsitesPage() {
         <SheetContent side="right" className="sm:max-w-md">
           <SheetHeader>
             <SheetTitle className="text-[16px] font-semibold text-[#111827]">Add Website</SheetTitle>
-            <SheetDescription className="text-[12px] text-gray-500">Research a new client website</SheetDescription>
+            <SheetDescription className="text-[12px] text-gray-500">Paste a URL and we'll crawl it automatically</SheetDescription>
           </SheetHeader>
           <div className="px-4 space-y-4">
             <div>
               <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wider block mb-1">URL</label>
               <input value={addUrl} onChange={e => setAddUrl(e.target.value)} placeholder="https://example.com" className="w-full text-[13px] text-gray-700 bg-white border border-[#e5e7eb] rounded-[5px] px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-gray-300" />
             </div>
-            <div>
-              <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wider block mb-1">Website Name</label>
-              <input value={addName} onChange={e => setAddName(e.target.value)} placeholder="Company name" className="w-full text-[13px] text-gray-700 bg-white border border-[#e5e7eb] rounded-[5px] px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-gray-300" />
-            </div>
-            <div>
-              <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wider block mb-1">Category</label>
-              <input value={addCategory} onChange={e => setAddCategory(e.target.value)} placeholder="e.g. Healthcare, Technology, Real Estate" className="w-full text-[13px] text-gray-700 bg-white border border-[#e5e7eb] rounded-[5px] px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-gray-300" />
-            </div>
-            <div className="flex items-center gap-2">
-              <input type="checkbox" id="healthcare" checked={addHealthcare} onChange={e => setAddHealthcare(e.target.checked)} className="rounded border-gray-300 text-[#111827] focus:ring-gray-300" />
-              <label htmlFor="healthcare" className="text-[13px] text-gray-700">Healthcare provider</label>
-            </div>
-            <div>
-              <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wider block mb-1">Extracted Emails</label>
-              <input value={addEmails} onChange={e => setAddEmails(e.target.value)} placeholder="email@example.com, ..." className="w-full text-[13px] text-gray-700 bg-white border border-[#e5e7eb] rounded-[5px] px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-gray-300" />
-            </div>
-            <div>
-              <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wider block mb-1">Extracted Phones</label>
-              <input value={addPhones} onChange={e => setAddPhones(e.target.value)} placeholder="+1 (555) 000-0000, ..." className="w-full text-[13px] text-gray-700 bg-white border border-[#e5e7eb] rounded-[5px] px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-gray-300" />
-            </div>
             <div className="pt-2">
-              <button onClick={handleAdd} disabled={!addUrl || !addName} className="w-full py-2 bg-[#111827] hover:bg-black disabled:bg-gray-300 text-white text-[12px] font-semibold rounded-[6px] transition-colors shadow-sm">
-                Add Website
+              <button onClick={handleAdd} disabled={!addUrl} className="w-full py-2 bg-[#111827] hover:bg-black disabled:bg-gray-300 text-white text-[12px] font-semibold rounded-[6px] transition-colors shadow-sm flex items-center justify-center gap-1.5">
+                <svg className="size-3.5 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                Start Crawl
               </button>
             </div>
           </div>
@@ -216,7 +225,7 @@ export default function WebsitesPage() {
 
 function scrapeStatusBadge(status?: string) {
   if (!status || status === 'idle') return null;
-  if (status === 'scraping') return <span className="text-[11px] font-medium px-1.5 py-0.5 rounded border bg-blue-50 text-blue-600 border-blue-200 animate-pulse">Scraping...</span>;
+  if (status === 'scraping') return <span className="text-[11px] font-medium px-1.5 py-0.5 rounded border bg-blue-50 text-blue-600 border-blue-200 animate-pulse">Crawling...</span>;
   if (status === 'done') return <span className="text-[11px] font-medium px-1.5 py-0.5 rounded border bg-green-50 text-green-700 border-green-200">Done</span>;
   if (status === 'error') return <span className="text-[11px] font-medium px-1.5 py-0.5 rounded border bg-red-50 text-red-600 border-red-200">Error</span>;
   return null;
