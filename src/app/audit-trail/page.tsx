@@ -1,16 +1,15 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import MainLayout from '@/components/main-layout';
-import { ExportDialog } from '@/components/shared/export-dialog';
+import { ExportDropdown } from '@/components/shared/export-dropdown';
 
 const PAGE_SIZE = 15;
 
 export default function AuditTrailPage() {
   const [logs, setLogs] = useState<any[]>([]);
   const [page, setPage] = useState(0);
-  const [showExport, setShowExport] = useState(false);
 
   useEffect(() => {
     fetch('/api/audit-logs').then(r => r.json()).then(setLogs).catch(() => {});
@@ -23,9 +22,7 @@ export default function AuditTrailPage() {
     <MainLayout>
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-[22px] font-normal text-gray-900 tracking-tight">Audit Trail</h1>
-        <button onClick={() => setShowExport(true)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-[#111827] hover:bg-black text-white font-semibold rounded-[6px] transition-colors shadow-sm">
-          <Download className="size-3.5" /> Export
-        </button>
+        <ExportDropdown data={logs} filename="audit-trail" />
       </div>
       <div className="bg-white border border-[#e9ecef] rounded-[10px] shadow-sm overflow-hidden">
         <table className="w-full text-left border-collapse">
@@ -62,7 +59,6 @@ export default function AuditTrailPage() {
           </div>
         )}
       </div>
-      <ExportDialog open={showExport} onOpenChange={setShowExport} data={logs} filename="audit-trail" />
     </MainLayout>
   );
 }

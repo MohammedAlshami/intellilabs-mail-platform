@@ -24,9 +24,30 @@ const AiPanelContext = React.createContext<AiPanelContextValue>({
   setMessages: () => {},
 });
 
+function getSavedMessages(): ChatMessage[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const saved = localStorage.getItem("ai_chat_messages");
+    return saved ? JSON.parse(saved) : [];
+  } catch { return []; }
+}
+
+function getSavedOpen(): boolean {
+  if (typeof window === "undefined") return false;
+  try { return localStorage.getItem("ai_chat_open") === "true"; } catch { return false; }
+}
+
 export function AiPanelProvider({ children }: { children: React.ReactNode }) {
-  const [open, setOpen] = React.useState(false);
-  const [messages, setMessages] = React.useState<ChatMessage[]>([]);
+  const [open, setOpen] = React.useState(getSavedOpen);
+  const [messages, setMessages] = React.useState<ChatMessage[]>(getSavedMessages);
+
+  React.useEffect(() => {
+    try { localStorage.setItem("ai_chat_open", String(open)); } catch {}
+  }, [open]);
+
+  React.useEffect(() => {
+    try { localStorage.setItem("ai_chat_messages", JSON.stringify(messages)); } catch {}
+  }, [messages]);
 
   const toggle = React.useCallback(() => setOpen((v) => !v), []);
   const close = React.useCallback(() => setOpen(false), []);

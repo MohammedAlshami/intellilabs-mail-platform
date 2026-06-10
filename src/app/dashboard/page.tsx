@@ -2,13 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { Download } from 'lucide-react';
 import MainLayout from '@/components/main-layout';
-import { ExportDialog } from '@/components/shared/export-dialog';
+import { ExportDropdown } from '@/components/shared/export-dropdown';
 
 export default function DashboardPage() {
   const [stats, setStats] = useState({ websites: 0, emails: 0, flagged: 0, campaigns: 0, websitesByCategory: [] as { name: string; count: number }[] });
-  const [showExport, setShowExport] = useState(false);
 
   useEffect(() => {
     fetch('/api/websites').then(r => r.json()).then(rows => {
@@ -33,9 +31,7 @@ export default function DashboardPage() {
     <MainLayout>
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-[22px] font-normal text-gray-900 tracking-tight">Dashboard</h1>
-        <button onClick={() => setShowExport(true)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-[#111827] hover:bg-black text-white font-semibold rounded-[6px] transition-colors shadow-sm">
-          <Download className="size-3.5" /> Export
-        </button>
+        <ExportDropdown data={[{ Type: 'Dashboard Summary', Websites: stats.websites, Leads: stats.emails, Campaigns: stats.campaigns, Flagged: stats.flagged }]} filename="dashboard" />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
@@ -66,8 +62,6 @@ export default function DashboardPage() {
           Activity log will appear here once campaigns and email operations begin.
         </div>
       </div>
-
-      <ExportDialog open={showExport} onOpenChange={setShowExport} data={[{ type: 'Dashboard Summary', websites: stats.websites, leads: stats.emails, campaigns: stats.campaigns, flagged: stats.flagged }]} filename="dashboard" />
     </MainLayout>
   );
 }

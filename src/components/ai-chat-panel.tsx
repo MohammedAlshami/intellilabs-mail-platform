@@ -44,6 +44,11 @@ const PAGES = [
   { label: "Websites", path: "/websites" },
   { label: "Leads", path: "/leads" },
   { label: "Removal List", path: "/removal-list" },
+  { label: "Reports", path: "/reports" },
+  { label: "Audit Trail", path: "/audit-trail" },
+  { label: "Roles", path: "/roles" },
+  { label: "Users", path: "/users" },
+  { label: "Profile", path: "/profile" },
 ];
 
 export function AiChatPanel() {
@@ -65,48 +70,83 @@ export function AiChatPanel() {
     setCurrentReasoning("Thinking about your request...");
     setCurrentToolCall(null);
 
-    // Check for navigation intent
+    // Check for tool intents
     const lower = msg.toLowerCase();
+
+    // Navigation
     const page = PAGES.find(p => lower.includes(p.label.toLowerCase()) || lower.includes(p.path));
-    if (page && (lower.includes("go") || lower.includes("open") || lower.includes("navigate") || lower.includes("show"))) {
-      setCurrentReasoning("User wants to navigate. Identifying the correct page...");
-      await new Promise(r => setTimeout(r, 500));
-      setCurrentToolCall({ name: "navigate", args: JSON.stringify({ page: page.label, path: page.path }) });
-      await new Promise(r => setTimeout(r, 500));
-      setMessages(p => [...p, {
-        role: "assistant",
-        content: `Navigating to ${page.label}...`,
-        toolCalls: [{ name: "navigate", args: JSON.stringify({ page: page.label, path: page.path }), result: "Navigated" }]
-      }]);
-      setCurrentReasoning("");
-      setCurrentToolCall(null);
-      setLoading(false);
-      setTimeout(() => { router.push(page.path); close(); }, 300);
+    if (page) {
+      const navWords = ["go", "open", "navigate", "show", "take", "bring", "visit", "move", "head", "switch", "redirect", "go to", "take me", "bring me", "show me"];
+      if (navWords.some(w => lower.includes(w))) {
+        setCurrentReasoning("Navigating to page...");
+        await new Promise(r => setTimeout(r, 300));
+        setCurrentToolCall({ name: "navigate", args: JSON.stringify({ page: page.label, path: page.path }) });
+        await new Promise(r => setTimeout(r, 300));
+        setMessages(p => [...p, { role: "assistant", content: `Navigating to ${page.label}...`, toolCalls: [{ name: "navigate", args: JSON.stringify({ page: page.label, path: page.path }), result: "Navigated" }] }]);
+        setCurrentReasoning(""); setCurrentToolCall(null); setLoading(false);
+        setTimeout(() => router.push(page.path), 300);
+        return;
+      }
+    }
+
+    // Search intent: "find X in Y", "search for X in Z"
+    const searchMatch = lower.match(/(?:find|search|look|show|get|list)\s+(.+?)(?:\s+(?:in|from|on)\s+(.+?))?(?:\s+(?:where|with|filter)\s+(.+))?$/i);
+    const filterMatch = lower.match(/(?:filter|sort|group)\s+(.+?)(?:\s+(?:by|on)\s+(.+?))?(?:\s+(?:in|from)\s+(.+))?/i);
+    const countMatch = lower.match(/(?:count|how many|total|stats|summar)/i);
+
+    if (countMatch) {
+      setCurrentReasoning("Getting counts from all tables...");
+      setCurrentToolCall({ name: "counts", args: "{}" });
+      const res = await fetch("/api/ai/tools", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tool: "counts", args: {} }) });
+      const result = await res.json();
+      const counts = result.data;
+      const summary = Object.entries(counts).map(([t, c]) => `${t.replace(/-/g, " ")}: ${c}`).join("\n");
+      setMessages(p => [...p, { role: "assistant", content: `**Platform Summary**\n\n${summary}`, toolCalls: [{ name: "counts", args: "{}", result: JSON.stringify(counts) }] }]);
+      setCurrentReasoning(""); setCurrentToolCall(null); setLoading(false);
       return;
     }
 
-    // Call AI
+    // Try to call the AI chat API
     try {
-      setCurrentReasoning("Processing your question and searching for relevant information...");
+      setCurrentReasoning("Processing your request...");
       const res = await fetch("/api/ai/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: msg,
           availablePages: PAGES.map(p => `${p.label} (${p.path})`).join(", "),
+          availableTables: ["websites", "campaigns", "leads", "email-lists", "sending-history", "bounce-responses", "removal-list", "audit-logs", "roles", "users"],
           model: "openai/gpt-5-nano",
           reasoningEffort: "minimal",
         }),
       });
       const data = await res.json();
-      setMessages(p => [...p, {
-        role: "assistant",
-        content: data.reply || "No response.",
-        reasoning: data.reasoning || "",
-        toolCalls: data.toolCalls || [],
-      }]);
+
+      // If the AI wants to use a tool, try it
+      if (data.toolCall) {
+        setCurrentReasoning(`Executing tool: ${data.toolCall.name}...`);
+        setCurrentToolCall(data.toolCall);
+        const toolRes = await fetch("/api/ai/tools", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data.toolCall),
+        });
+        const toolResult = await toolRes.json();
+        setMessages(p => [...p, {
+          role: "assistant",
+          content: data.reply || `Query completed. Found ${toolResult.data?.length || toolResult.total || 0} results.`,
+          reasoning: data.reasoning || "",
+          toolCalls: [{ ...data.toolCall, result: JSON.stringify(toolResult).slice(0, 500) }],
+        }]);
+      } else {
+        setMessages(p => [...p, {
+          role: "assistant",
+          content: data.reply || "No response.",
+          reasoning: data.reasoning || "",
+          toolCalls: data.toolCalls || [],
+        }]);
+      }
     } catch {
-      setMessages(p => [...p, { role: "assistant", content: "Connection error." }]);
+      setMessages(p => [...p, { role: "assistant", content: "Connection error. Please try again." }]);
     }
     setCurrentReasoning("");
     setCurrentToolCall(null);

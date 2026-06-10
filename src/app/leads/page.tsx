@@ -1,15 +1,22 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Mail, Phone, ExternalLink } from 'lucide-react';
 import MainLayout from '@/components/main-layout';
-import { seedLeads, type Lead } from '@/lib/data';
+import { ExportDropdown } from '@/components/shared/export-dropdown';
+
+type Lead = {
+  id: string; websiteId: string; websiteName: string;
+  type: "email" | "phone"; value: string; createdAt: string;
+};
 
 const PAGE_SIZE = 15;
 
 export default function LeadsPage() {
-  const [leads] = useState<Lead[]>(seedLeads);
+  const [leads, setLeads] = useState<Lead[]>([]);
   const [page, setPage] = useState(0);
+
+  useEffect(() => { fetch('/api/leads').then(r => r.json()).then(setLeads); }, []);
 
   const totalPages = Math.ceil(leads.length / PAGE_SIZE);
   const paged = leads.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
@@ -18,7 +25,10 @@ export default function LeadsPage() {
     <MainLayout>
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-[22px] font-normal text-gray-900 tracking-tight">Leads</h1>
-        <span className="text-xs text-gray-400">{leads.length} total</span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-400">{leads.length} total</span>
+          <ExportDropdown data={leads.map(l => ({ Type: l.type, Value: l.value, Source: l.websiteName, Date: new Date(l.createdAt).toLocaleDateString() }))} filename="leads" columnOrder={["Type", "Value", "Source", "Date"]} />
+        </div>
       </div>
       <div className="bg-white border border-[#e9ecef] rounded-[10px] shadow-sm overflow-hidden">
         <table className="w-full text-left border-collapse">

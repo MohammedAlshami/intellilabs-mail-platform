@@ -1,5 +1,4 @@
 import * as cheerio from "cheerio";
-import { chromium, type Browser } from "playwright";
 
 function extractEmailsFromText(text: string): Set<string> {
   const emails = new Set<string>();
@@ -19,7 +18,7 @@ function extractEmailsFromText(text: string): Set<string> {
   return emails;
 }
 
-async function fetchPageStatic(url: string): Promise<string | null> {
+async function fetchPage(url: string): Promise<string | null> {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8000);
@@ -42,33 +41,16 @@ export async function extractEmails(domain: string): Promise<string[]> {
   const rootDomain = domain.replace("www.", "");
   const urlHttps = `https://${rootDomain}`;
   const allEmails = new Set<string>();
-  let browser: Browser | null = null;
 
-  async function fetchPageWithFallback(url: string): Promise<string | null> {
-    const staticText = await fetchPageStatic(url);
-    if (staticText && staticText.length > 200) return staticText;
-    try {
-      if (!browser) browser = await chromium.launch({ headless: true });
-      const page = await browser.newPage();
-      await page.goto(url, { waitUntil: "networkidle", timeout: 30000 });
-      await page.waitForTimeout(2000);
-      const text = await page.innerText("body");
-      await page.close();
-      return text.replace(/\s+/g, " ").trim();
-    } catch {
-      return null;
-    }
-  }
+  // Fetch homepage
+  const text = await fetchPage(urlHttps);
+  if (!text) return [];
 
+  const homeEmails = extractEmailsFromText(text);
+  for (const e of homeEmails) allEmails.add(e);
+
+  // Discover internal links
   try {
-    // Fetch homepage
-    const text = await fetchPageWithFallback(urlHttps);
-    if (!text) return [];
-
-    const homeEmails = extractEmailsFromText(text);
-    for (const e of homeEmails) allEmails.add(e);
-
-    // Discover internal links from homepage HTML
     const res = await fetch(urlHttps, { headers: { "User-Agent": "Mozilla/5.0" } });
     const html = await res.text();
     const $ = cheerio.load(html);
@@ -84,23 +66,19 @@ export async function extractEmails(domain: string): Promise<string[]> {
       }
     });
 
-    const sorted = [...links].sort((a, b) => {
+    // Fetch extra pages in parallel
+    const extra = [...links].sort((a, b) => {
       const p = (s: string) => /contact|about|team|submit/i.test(s) ? 0 : /issues|article|page/i.test(s) ? 1 : 2;
       return p(a) - p(b);
-    });
-    const extra = sorted.slice(0, 15);
+    }).slice(0, 15);
 
-    const results = await Promise.allSettled(extra.map(u => fetchPageWithFallback(u)));
+    const results = await Promise.allSettled(extra.map(u => fetchPage(u)));
     for (const result of results) {
       if (result.status !== "fulfilled" || !result.value) continue;
       const pageEmails = extractEmailsFromText(result.value);
       for (const e of pageEmails) allEmails.add(e);
     }
-  } finally {
-    if (browser) await (browser as Browser).close();
-  }
-
-
+  } catch {}
 
   return [...allEmails].sort();
 }

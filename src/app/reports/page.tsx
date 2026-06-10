@@ -1,15 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Download } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, Pie, PieChart, Cell, Legend } from 'recharts';
 import MainLayout from '@/components/main-layout';
-import { ExportDialog } from '@/components/shared/export-dialog';
+import { ExportDropdown } from '@/components/shared/export-dropdown';
 
 const COLORS = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)'];
 
 export default function ReportsPage() {
-  const [showExport, setShowExport] = useState(false);
   const [stats, setStats] = useState({ websites: 0, emails: 0, websitesByCategory: [] as { name: string; count: number }[], emailsByDomain: [] as { name: string; count: number }[], leadTypes: [] as { name: string; value: number }[] });
 
   useEffect(() => {
@@ -45,9 +43,11 @@ export default function ReportsPage() {
     <MainLayout>
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-[22px] font-normal text-gray-900 tracking-tight">Reports</h1>
-        <button onClick={() => setShowExport(true)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-[#111827] hover:bg-black text-white font-semibold rounded-[6px] transition-colors shadow-sm">
-          <Download className="size-3.5" /> Export
-        </button>
+        <ExportDropdown data={[
+          ...stats.websitesByCategory.map(c => ({ Type: 'Websites by Category', Category: c.name, Count: c.count })),
+          ...stats.emailsByDomain.map(d => ({ Type: 'Emails by Domain', Domain: d.name, Count: d.count })),
+          ...stats.leadTypes.map(l => ({ Type: 'Lead Types', LeadType: l.name, Count: l.value })),
+        ]} filename="reports" />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
@@ -105,7 +105,6 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      <ExportDialog open={showExport} onOpenChange={setShowExport} data={[{ type: 'Websites by Category', ...Object.fromEntries(stats.websitesByCategory.map(c => [c.name, c.count])) }, { type: 'Lead Types', emails: stats.leadTypes[0]?.value || 0, phones: stats.leadTypes[1]?.value || 0 }]} filename="reports" />
     </MainLayout>
   );
 }

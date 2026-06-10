@@ -1,11 +1,13 @@
 'use client';
 
-import { useState } from 'react';
-import { Plus, ChevronLeft, ChevronRight, Download, Trash2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, ChevronLeft, ChevronRight, Download } from 'lucide-react';
 import MainLayout from '@/components/main-layout';
+import { RowActions } from '@/components/row-actions';
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetClose,
 } from '@/components/ui/sheet';
+import { Button } from '@/components/ui/button';
 
 type RemovalItem = {
   id: string;
@@ -26,35 +28,38 @@ export default function RemovalListPage() {
   const [addSource, setAddSource] = useState('');
   const [addReason, setAddReason] = useState('');
 
+  useEffect(() => { fetch('/api/removal-list').then(r => r.json()).then(setItems); }, []);
+
   const totalPages = Math.ceil(items.length / PAGE_SIZE);
   const paged = items.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (!addEmail) return;
-    const newItem: RemovalItem = {
-      id: String(Date.now()),
-      email: addEmail,
-      source: addSource || 'Manual entry',
-      reason: addReason || 'Manual flag',
-      flaggedAt: new Date().toISOString(),
-      status: 'pending',
-    };
-    setItems([newItem, ...items]);
+    const res = await fetch('/api/removal-list', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: addEmail, source: addSource || 'Manual entry', reason: addReason || 'Manual flag' }),
+    });
+    const { id } = await res.json();
+    setItems([{ id, email: addEmail, source: addSource || 'Manual entry', reason: addReason || 'Manual flag', flaggedAt: new Date().toISOString(), status: 'pending' }, ...items]);
     setShowAdd(false);
     setAddEmail('');
     setAddSource('');
     setAddReason('');
   };
 
-  const handleRemove = (id: string) => {
+  const handleRemove = async (id: string) => {
+    await fetch('/api/removal-list', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, status: 'removed' }),
+    });
     setItems(prev => prev.map(i => i.id === id ? { ...i, status: 'removed' as const } : i));
   };
 
   const handleExport = () => {
     const csv = ['Email,Source,Reason,Flagged Date,Status'];
-    items.forEach(i => {
-      csv.push(`${i.email},${i.source},${i.reason},${new Date(i.flaggedAt).toLocaleDateString()},${i.status}`);
-    });
+    items.forEach(i => { csv.push(`${i.email},${i.source},${i.reason},${new Date(i.flaggedAt).toLocaleDateString()},${i.status}`); });
     const blob = new Blob([csv.join('\n')], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -72,9 +77,9 @@ export default function RemovalListPage() {
           <button onClick={handleExport} disabled={items.length === 0} className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-semibold rounded-[6px] transition-colors shadow-sm disabled:opacity-50">
             <Download className="size-3.5" /> Export CSV
           </button>
-          <button onClick={() => setShowAdd(true)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-[#111827] hover:bg-black text-white font-semibold rounded-[6px] transition-colors shadow-sm">
-            <Plus className="size-3.5" /> Add to Removal List
-          </button>
+          <Button size="sm" onClick={() => setShowAdd(true)}>
+            <Plus className="size-3.5" /> Add Entry
+          </Button>
         </div>
       </div>
       <div className="bg-white border border-[#e9ecef] rounded-[10px] shadow-sm overflow-hidden">
@@ -105,11 +110,9 @@ export default function RemovalListPage() {
                     </span>
                   </td>
                   <td className="py-3 px-5 text-right">
-                    {item.status === 'pending' && (
-                      <button onClick={() => handleRemove(item.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition">
-                        <Trash2 className="size-3.5" />
-                      </button>
-                    )}
+                    <RowActions actions={[
+                      ...(item.status === 'pending' ? [{ label: 'Mark Removed', onClick: () => handleRemove(item.id) }] : []),
+                    ]} />
                   </td>
                 </tr>
               ))
@@ -161,9 +164,9 @@ export default function RemovalListPage() {
               </select>
             </div>
             <div className="pt-2">
-              <button onClick={handleAdd} disabled={!addEmail} className="w-full py-2 bg-[#111827] hover:bg-black disabled:bg-gray-300 text-white text-[12px] font-semibold rounded-[6px] transition-colors shadow-sm">
+              <Button onClick={handleAdd} disabled={!addEmail} className="w-full">
                 Add to Removal List
-              </button>
+              </Button>
             </div>
           </div>
           <SheetClose />

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ChatOpenAI } from "@langchain/openai";
 
 export async function POST(req: NextRequest) {
-  const { message, availablePages, model: modelName, reasoningEffort } = await req.json();
+  const { message, availablePages, availableTables, model: modelName, reasoningEffort } = await req.json();
   if (!message) return NextResponse.json({ reply: "Message is required" }, { status: 400 });
 
   const model = new ChatOpenAI({
@@ -13,13 +13,25 @@ export async function POST(req: NextRequest) {
   });
 
   const systemPrompt = `You are an AI assistant for the IntelliLabs Email Operations Platform.
+
 Available pages: ${availablePages || "None listed"}
-You have a tool called "navigate" that takes you to any page. When the user asks to go somewhere, use the navigate tool.
+Available data tables: ${availableTables || "None listed"}
+
+You have the following tools available:
+- navigate(page, path): Navigate to a page
+- search(table, q, filters): Search across any data table with optional column filters
+- get(table, id): Get a single record by ID
+- counts: Get record counts across all tables
+- export(table, q, filters): Export data as CSV
 
 Rules:
-1. If the user asks to navigate, first reason about which page matches, then use the navigate tool.
-2. For general questions, answer helpfully and concisely.
-3. Always think step by step before responding.`;
+1. If the user asks to navigate somewhere, use the navigate tool.
+2. If the user asks to search, find, look up, or list data, use the search tool.
+3. If the user asks for counts, totals, or summary stats, use the counts tool.
+4. If the user wants to filter by specific columns, pass the filters to the search tool.
+5. For general questions, answer helpfully and concisely.
+6. If you want to use a tool, respond with JSON: { "toolCall": { "tool": "...", "args": {...} }, "reply": "..." }
+7. Otherwise respond with plain text.`;
 
   try {
     const result = await model.invoke([
@@ -28,9 +40,20 @@ Rules:
     ]);
 
     const content = typeof result.content === "string" ? result.content : "";
+    let toolCall = null;
+    let reply = content;
+
+    try {
+      const parsed = JSON.parse(content);
+      if (parsed.toolCall) {
+        toolCall = parsed.toolCall;
+        reply = parsed.reply || "";
+      }
+    } catch {}
 
     return NextResponse.json({
-      reply: content,
+      reply,
+      toolCall,
       reasoning: `Analyzing request: "${message}". Identifying intent and formulating response.`,
     });
   } catch (e: any) {

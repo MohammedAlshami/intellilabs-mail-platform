@@ -4,9 +4,13 @@ import { roles } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 export async function GET() {
-  const db = await getDb();
-  const all = await db.select().from(roles);
-  return NextResponse.json(all);
+  try {
+    const db = await getDb();
+    const all = await db.select().from(roles);
+    return NextResponse.json(all);
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message ?? String(e) }, { status: 500 });
+  }
 }
 
 export async function POST(req: NextRequest) {

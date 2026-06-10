@@ -1,12 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, Eye, Edit, ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import MainLayout from '@/components/main-layout';
+import { RowActions } from '@/components/row-actions';
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetClose,
 } from '@/components/ui/sheet';
-import { ExportDialog } from '@/components/shared/export-dialog';
+import { ExportDropdown } from '@/components/shared/export-dropdown';
+import { Button } from '@/components/ui/button';
 
 const ALL_PERMISSIONS = [
   { id: 'view_dashboard', label: 'View Dashboard', category: 'Dashboard' },
@@ -34,7 +36,6 @@ export default function RolesPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [viewRole, setViewRole] = useState<any>(null);
   const [editRole, setEditRole] = useState<any>(null);
-  const [showExport, setShowExport] = useState(false);
 
   // Form state
   const [formName, setFormName] = useState('');
@@ -91,8 +92,10 @@ export default function RolesPage() {
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-[22px] font-normal text-gray-900 tracking-tight">Roles & Permissions</h1>
         <div className="flex items-center gap-2">
-          <button onClick={() => setShowExport(true)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-semibold rounded-[6px] transition-colors shadow-sm"><Download className="size-3.5" /> Export</button>
-          <button onClick={() => { resetForm(); setShowAdd(true); }} className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-[#111827] hover:bg-black text-white font-semibold rounded-[6px] transition-colors shadow-sm"><Plus className="size-3.5" /> Create Role</button>
+          <ExportDropdown data={roles.map(r => ({ ...r, permissions: JSON.stringify(typeof r.permissions === 'string' ? JSON.parse(r.permissions) : r.permissions) }))} filename="roles" />
+          <Button size="sm" onClick={() => { resetForm(); setShowAdd(true); }}>
+            <Plus className="size-3.5" /> Create Role
+          </Button>
         </div>
       </div>
       <div className="bg-white border border-[#e9ecef] rounded-[10px] shadow-sm overflow-hidden">
@@ -122,10 +125,10 @@ export default function RolesPage() {
                     <td className="py-3 px-5">{role.isLeader ? <span className="text-[11px] font-medium px-1.5 py-0.5 rounded border bg-purple-50 text-purple-600 border-purple-200">Leader</span> : '—'}</td>
                     <td className="py-3 px-5 text-gray-500">{leads?.length ? leads.join(', ') : '—'}</td>
                     <td className="py-3 px-5 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => setViewRole(role)} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition"><Eye className="size-3.5" /></button>
-                        <button onClick={() => openEdit(role)} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition"><Edit className="size-3.5" /></button>
-                      </div>
+                      <RowActions actions={[
+                        { label: 'View', onClick: () => setViewRole(role) },
+                        { label: 'Edit', onClick: () => openEdit(role) },
+                      ]} />
                     </td>
                   </tr>
                 );
@@ -188,7 +191,7 @@ export default function RolesPage() {
                 <div className="flex flex-wrap gap-1">
                   {otherRoles.map(r => (
                     <button key={r.id} onClick={() => setFormLeadsRoles(prev => prev.includes(r.name) ? prev.filter(n => n !== r.name) : [...prev, r.name])}
-                      className={`text-[11px] font-medium px-2 py-1 rounded border transition-colors ${formLeadsRoles.includes(r.name) ? 'bg-[#111827] text-white border-[#111827]' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+                      className={`text-[11px] font-medium px-2 py-1 rounded border transition-colors ${formLeadsRoles.includes(r.name) ? 'bg-primary text-primary-foreground border-primary' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
                     >{r.name}</button>
                   ))}
                 </div>
@@ -211,16 +214,14 @@ export default function RolesPage() {
               ))}
             </div>
             <div className="pt-2">
-              <button onClick={editRole ? handleEdit : handleAdd} disabled={!formName} className="w-full py-2 bg-[#111827] hover:bg-black disabled:bg-gray-300 text-white text-[12px] font-semibold rounded-[6px] transition-colors shadow-sm">
-                {editRole ? 'Save Changes' : 'Create Role'}
-              </button>
+              <Button onClick={editRole ? handleEdit : handleAdd} disabled={!formName} className="w-full">
+                {editRole ? 'Update Role' : 'Create Role'}
+              </Button>
             </div>
           </div>
           <SheetClose />
         </SheetContent>
       </Sheet>
-
-      <ExportDialog open={showExport} onOpenChange={setShowExport} data={roles.map(r => ({ ...r, permissions: JSON.stringify(typeof r.permissions === 'string' ? JSON.parse(r.permissions) : r.permissions) }))} filename="roles" />
     </MainLayout>
   );
 }

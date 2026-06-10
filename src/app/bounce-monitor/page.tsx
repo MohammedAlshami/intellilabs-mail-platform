@@ -1,17 +1,26 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import MainLayout from '@/components/main-layout';
+
+type BounceEntry = {
+  id: string; email: string; type: string; reason: string;
+  confidence: number; received: string; status: string;
+};
 
 const PAGE_SIZE = 15;
 
 export default function BounceMonitorPage() {
-  const [responses] = useState<any[]>([]);
+  const [responses, setResponses] = useState<BounceEntry[]>([]);
   const [filter, setFilter] = useState<'all' | 'bounce' | 'auto-reply'>('all');
   const [page, setPage] = useState(0);
-  const totalPages = Math.ceil(responses.length / PAGE_SIZE);
-  const paged = responses.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
+  useEffect(() => { fetch('/api/bounce-responses').then(r => r.json()).then(setResponses); }, []);
+
+  const filtered = filter === 'all' ? responses : responses.filter(r => r.type === filter);
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  const paged = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   return (
     <MainLayout>
@@ -21,13 +30,9 @@ export default function BounceMonitorPage() {
       </div>
       <div className="flex gap-2 mb-6">
         {(['all', 'bounce', 'auto-reply'] as const).map((f) => (
-          <button
-            key={f}
-            onClick={() => { setFilter(f); setPage(0); }}
+          <button key={f} onClick={() => { setFilter(f); setPage(0); }}
             className={`px-3 py-1.5 text-xs font-semibold rounded-[6px] transition-colors ${
-              filter === f
-                ? 'bg-[#111827] text-white'
-                : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+               filter === f ? 'bg-primary text-primary-foreground' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
             }`}
           >
             {f === 'all' ? 'All' : f === 'bounce' ? 'Bounces' : 'Auto-Replies'}
@@ -50,13 +55,13 @@ export default function BounceMonitorPage() {
             {paged.length === 0 ? (
               <tr><td colSpan={6} className="py-8 text-center text-gray-400">No responses captured yet. Inbound monitoring not active.</td></tr>
             ) : (
-              paged.map((r, i) => (
-                <tr key={i} className="hover:bg-gray-50 transition">
+              paged.map((r) => (
+                <tr key={r.id} className="hover:bg-gray-50 transition">
                   <td className="py-3 px-5 text-gray-700 font-medium">{r.email}</td>
                   <td className="py-3 px-5"><span className={`text-[11px] font-medium px-1.5 py-0.5 rounded border ${r.type === 'bounce' ? 'bg-red-50 text-red-600 border-red-200' : 'bg-blue-50 text-blue-600 border-blue-200'}`}>{r.type}</span></td>
                   <td className="py-3 px-5 text-gray-500">{r.reason}</td>
                   <td className="py-3 px-5 text-gray-500">{r.confidence}%</td>
-                  <td className="py-3 px-5 text-gray-500">{r.received}</td>
+                  <td className="py-3 px-5 text-gray-500">{new Date(r.received).toLocaleDateString()}</td>
                   <td className="py-3 px-5"><span className="text-[11px] font-medium px-1.5 py-0.5 rounded border bg-yellow-50 text-yellow-700 border-yellow-200">{r.status}</span></td>
                 </tr>
               ))

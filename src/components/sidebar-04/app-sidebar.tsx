@@ -1,6 +1,6 @@
 "use client";
 
-import { Paperclip, Send, Mail as MailIcon, Globe, Users, ShieldOff, LayoutDashboard, History, AlertTriangle, Bot, ScrollText, BarChart3, ShieldCheck } from "lucide-react";
+import { Paperclip, Send, Mail as MailIcon, Globe, Users, ShieldOff, LayoutDashboard, History, AlertTriangle, Sparkles, ScrollText, BarChart3, ShieldCheck, List, UserCog, Plus, PanelLeftClose, PanelLeft, SquarePen } from "lucide-react";
 import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
 
@@ -25,19 +25,41 @@ import { useMail } from "@/components/sidebar-04/mail-context";
 import { NavUser } from "@/components/sidebar-04/nav-user";
 import { useAiPanel } from "@/contexts/ai-panel-context";
 
-const pageRoutes = [
-  { title: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
-  { title: "Mail", icon: IconMailbox, path: "/mail" },
-  { title: "Campaigns", icon: Send, path: "/campaign" },
-  { title: "Email List", icon: MailIcon, path: "/email-list" },
-  { title: "Sending History", icon: History, path: "/sending-history" },
-  { title: "Bounce Monitor", icon: AlertTriangle, path: "/bounce-monitor" },
-  { title: "Websites", icon: Globe, path: "/websites" },
-  { title: "Leads", icon: Users, path: "/leads" },
-  { title: "Removal List", icon: ShieldOff, path: "/removal-list" },
-  { title: "Audit Trail", icon: ScrollText, path: "/audit-trail" },
-  { title: "Reports", icon: BarChart3, path: "/reports" },
-  { title: "Roles", icon: ShieldCheck, path: "/roles" },
+const navGroups = [
+  {
+    label: "Overview",
+    routes: [
+      { title: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
+      { title: "Reports", icon: BarChart3, path: "/reports" },
+    ],
+  },
+  {
+    label: "Email",
+    routes: [
+      { title: "Mail", icon: IconMailbox, path: "/mail" },
+      { title: "Campaigns", icon: Send, path: "/campaign" },
+      { title: "Email Lists", icon: List, path: "/email-list" },
+      { title: "Sending History", icon: History, path: "/sending-history" },
+      { title: "Bounce Monitor", icon: AlertTriangle, path: "/bounce-monitor" },
+    ],
+  },
+  {
+    label: "Data",
+    routes: [
+      { title: "Websites", icon: Globe, path: "/websites" },
+      { title: "Leads", icon: Users, path: "/leads" },
+      { title: "Email Lists", icon: List, path: "/email-list" },
+      { title: "Removal List", icon: ShieldOff, path: "/removal-list" },
+    ],
+  },
+  {
+    label: "Admin",
+    routes: [
+      { title: "Audit Trail", icon: ScrollText, path: "/audit-trail" },
+      { title: "Roles", icon: ShieldCheck, path: "/roles" },
+      { title: "Users", icon: UserCog, path: "/users" },
+    ],
+  },
 ];
 
 const user = {
@@ -46,7 +68,7 @@ const user = {
   avatar: "/avatar-01.png",
 };
 
-export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+export function AppSidebar({ collapsed, setCollapsed, ...props }: { collapsed: boolean; setCollapsed: (v: boolean) => void } & React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
   const router = useRouter();
   const [query, setQuery] = React.useState("");
@@ -67,60 +89,71 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <div className="flex">
       <Sidebar
-        style={{ "--sidebar-width": "12rem" } as React.CSSProperties}
+        style={{ "--sidebar-width": collapsed ? "4.5rem" : "12rem" } as React.CSSProperties}
         collapsible="none"
-        className="border-r p-2 px-1"
+        className={`border-r p-2 px-1 transition-[width] duration-300 ease-in-out ${collapsed ? 'w-[4.5rem]' : ''}`}
       >
         <SidebarHeader>
           <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuButton size="lg" asChild className="md:h-8 md:p-0">
-                <a href="/">
-                  <div className="bg-sidebar-accent text-sidebar-accent-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
-                    <IconBrandAmongUs className="size-4" />
-                  </div>
-                  <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-medium">Acme Inc</span>
-                    <span className="truncate text-xs">Enterprise</span>
-                  </div>
-                </a>
-              </SidebarMenuButton>
+              <div className="flex items-center justify-between px-1.5 py-1">
+                {!collapsed && <span className="text-xs font-semibold text-foreground uppercase tracking-wider">Menu</span>}
+                <button
+                  onClick={() => setCollapsed(!collapsed)}
+                  className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                  title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+                >
+                  {collapsed ? <PanelLeft className="size-4" /> : <PanelLeftClose className="size-4" />}
+                </button>
+              </div>
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarHeader>
         <SidebarContent>
-          <SidebarGroup>
-            <SidebarGroupLabel className="px-1.5 md:px-0 text-xs">
-              Navigation
-            </SidebarGroupLabel>
-            <SidebarGroupContent className="px-1.5 md:px-0">
-              <SidebarMenu>
-                {pageRoutes.map((route) => (
-                  <SidebarMenuItem key={route.path}>
-                    <SidebarMenuButton
-                      onClick={() => router.push(route.path)}
-                      isActive={pathname === route.path}
-                      className="px-2.5 md:px-2"
-                    >
-                      <route.icon />
-                      <span>{route.title}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
+          {navGroups.map((group) => (
+            <SidebarGroup key={group.label}>
+              <SidebarGroupLabel className={`px-1.5 md:px-0 text-xs flex items-center justify-between ${collapsed ? 'justify-center' : ''}`}>
+                {collapsed ? null : group.label}
+                {group.label === "Email" && !collapsed && (
+                  <button
+                    onClick={() => router.push('/campaign?compose=true')}
+                    className="p-0.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                    title="New Campaign"
+                  >
+                    <SquarePen className="size-3.5" />
+                  </button>
+                )}
+              </SidebarGroupLabel>
+              <SidebarGroupContent className="px-1.5 md:px-0">
+                <SidebarMenu>
+                  {group.routes.map((route) => (
+                    <SidebarMenuItem key={route.path}>
+                      <SidebarMenuButton
+                        onClick={() => router.push(route.path)}
+                        isActive={pathname === route.path}
+                        className={`px-2.5 md:px-2 ${collapsed ? 'justify-center' : ''}`}
+                        title={collapsed ? route.title : undefined}
+                      >
+                        <route.icon />
+                        {!collapsed && <span>{route.title}</span>}
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          ))}
         </SidebarContent>
         <SidebarFooter>
           <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuButton onClick={toggleAi} className="text-gray-500 hover:text-gray-700">
-                <Bot className="size-4" />
-                <span>AI Assistant</span>
+              <SidebarMenuButton onClick={toggleAi} className={`text-gray-500 hover:text-gray-700 ${collapsed ? 'justify-center' : ''}`}>
+                <Sparkles className="size-4" />
+                {!collapsed && <span>AI Assistant</span>}
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
-          <NavUser user={user} />
+          {!collapsed && <NavUser user={user} />}
         </SidebarFooter>
       </Sidebar>
 

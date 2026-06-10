@@ -2,14 +2,13 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, ChevronLeft, ChevronRight, ExternalLink, ArrowUpRight, MoreHorizontal, Trash2, Eye } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight, ExternalLink, ArrowUpRight } from 'lucide-react';
 import MainLayout from '@/components/main-layout';
+import { RowActions } from '@/components/row-actions';
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetClose,
 } from '@/components/ui/sheet';
-import {
-  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
-} from '@/components/ui/dropdown-menu';
+import { Button } from '@/components/ui/button';
 import type { Website } from '@/lib/data';
 
 const PAGE_SIZE = 10;
@@ -74,11 +73,20 @@ export default function WebsitesPage() {
       });
       if (res.ok) {
         const data = await res.json();
+        const emailsStr = data.emails?.join(', ') || '';
+        const wsName = data.name || suggName;
         await fetch('/api/websites', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id, scrapeStatus: 'done', emails: data.emails?.join(', ') || '', name: data.name || '', description: data.description || data.summary || '', summary: data.summary, services: data.services }),
+          body: JSON.stringify({ id, scrapeStatus: 'done', emails: emailsStr, name: wsName, description: data.description || data.summary || '', summary: data.summary, services: data.services }),
         });
+        if (emailsStr) {
+          await fetch('/api/email-lists', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: `${wsName} - Leads`, emails: emailsStr, source: addUrl }),
+          });
+        }
       } else {
         await fetch('/api/websites', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, scrapeStatus: 'error' }) });
       }
@@ -92,9 +100,9 @@ export default function WebsitesPage() {
     <MainLayout>
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-[22px] font-normal text-gray-900 tracking-tight">Websites</h1>
-        <button onClick={() => setShowAdd(true)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-[#111827] hover:bg-black text-white font-semibold rounded-[6px] transition-colors shadow-sm">
+        <Button size="sm" onClick={() => setShowAdd(true)}>
           <Plus className="size-3.5" /> Add Website
-        </button>
+        </Button>
       </div>
       <div className="bg-white border border-[#e9ecef] rounded-[10px] shadow-sm overflow-hidden">
         <table className="w-full text-left border-collapse">
@@ -133,21 +141,10 @@ export default function WebsitesPage() {
                   <td className="py-3 px-5 text-gray-500">{w.phones}</td>
                   <td className="py-3 px-5">{scrapeStatusBadge(w.scrapeStatus)}</td>
                   <td className="py-3 px-5 text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition">
-                          <MoreHorizontal className="size-3.5" />
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="min-w-[120px]">
-                        <DropdownMenuItem onClick={() => setViewWebsite(w)}>
-                          <Eye className="size-3.5 mr-2" /> View
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleDelete(w.id)} className="text-red-600">
-                          <Trash2 className="size-3.5 mr-2" /> Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    <RowActions actions={[
+                      { label: 'View', onClick: () => router.push(`/websites/${w.id}`) },
+                      { label: 'Delete', onClick: () => handleDelete(w.id), className: 'text-red-500' },
+                    ]} />
                   </td>
                 </tr>
               ))
@@ -182,10 +179,9 @@ export default function WebsitesPage() {
               <input value={addUrl} onChange={e => setAddUrl(e.target.value)} placeholder="https://example.com" className="w-full text-[13px] text-gray-700 bg-white border border-[#e5e7eb] rounded-[5px] px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-gray-300" />
             </div>
             <div className="pt-2">
-              <button onClick={handleAdd} disabled={!addUrl} className="w-full py-2 bg-[#111827] hover:bg-black disabled:bg-gray-300 text-white text-[12px] font-semibold rounded-[6px] transition-colors shadow-sm flex items-center justify-center gap-1.5">
-                <svg className="size-3.5 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+              <Button onClick={handleAdd} disabled={!addUrl} className="w-full">
                 Start Crawl
-              </button>
+              </Button>
             </div>
           </div>
           <SheetClose />
@@ -210,9 +206,9 @@ export default function WebsitesPage() {
               <div><span className="text-gray-400 block text-[11px] uppercase tracking-wider">Extracted Phones</span><span className="text-gray-700">{viewWebsite.phones || 'None'}</span></div>
               <div><span className="text-gray-400 block text-[11px] uppercase tracking-wider">Added</span><span className="text-gray-700">{new Date(viewWebsite.createdAt).toLocaleString()}</span></div>
               <div className="pt-2">
-                <button onClick={() => { setViewWebsite(null); router.push(`/websites/${viewWebsite.id}`); }} className="w-full py-2 bg-[#111827] hover:bg-black text-white text-[12px] font-semibold rounded-[6px] transition-colors shadow-sm flex items-center justify-center gap-1.5">
+                <Button onClick={() => { setViewWebsite(null); router.push(`/websites/${viewWebsite.id}`); }} className="w-full">
                   <ArrowUpRight className="size-3.5" /> Go to Website Page
-                </button>
+                </Button>
               </div>
             </div>
           )}
