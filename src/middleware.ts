@@ -6,29 +6,18 @@ const publicPaths = ["/login", "/api/auth/login", "/api/webhooks"];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-
-  if (publicPaths.some((p) => pathname.startsWith(p))) {
-    return NextResponse.next();
-  }
-
-  if (pathname.startsWith("/_next") || pathname.startsWith("/favicon") || pathname === "/") {
-    return NextResponse.next();
-  }
+  if (publicPaths.some((p) => pathname.startsWith(p))) return NextResponse.next();
+  if (pathname.startsWith("/_next") || pathname.startsWith("/favicon") || pathname === "/") return NextResponse.next();
 
   const token = request.cookies.get("token")?.value || request.headers.get("authorization")?.replace("Bearer ", "");
-
   if (!token) {
-    if (pathname.startsWith("/api/")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    if (pathname.startsWith("/api/")) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
   const payload = await verifyToken(token);
   if (!payload) {
-    if (pathname.startsWith("/api/")) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
-    }
+    if (pathname.startsWith("/api/")) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
@@ -38,12 +27,7 @@ export async function middleware(request: NextRequest) {
   requestHeaders.set("x-user-name", payload.name);
   requestHeaders.set("x-user-role", payload.roleId);
   requestHeaders.set("x-user-permissions", JSON.stringify(payload.permissions));
-
-  return NextResponse.next({
-    request: { headers: requestHeaders },
-  });
+  return NextResponse.next({ request: { headers: requestHeaders } });
 }
 
-export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
-};
+export const config = { matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"] };
