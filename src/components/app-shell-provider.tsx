@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, createContext, useContext } from "react";
+import { usePathname } from "next/navigation";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/sidebar-04/app-sidebar";
 import { AiChatPanel } from "@/components/ai-chat-panel";
@@ -26,12 +27,18 @@ function getInitialCollapsed(): boolean {
 }
 
 export function AppShellProvider({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const isLoginPage = pathname === "/login";
   const [collapsed, setCollapsed] = useState(getInitialCollapsed);
 
   const handleSetCollapsed = (v: boolean) => {
     setCollapsed(v);
     try { localStorage.setItem("sidebar_collapsed", String(v)); } catch {}
   };
+
+  if (isLoginPage) {
+    return <>{children}</>;
+  }
 
   return (
     <MailProvider>

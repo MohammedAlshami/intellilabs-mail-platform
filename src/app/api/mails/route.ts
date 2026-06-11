@@ -1,48 +1,52 @@
-import { NextResponse } from "next/server";
-import { AgentMailClient } from "agentmail";
+import { NextRequest, NextResponse } from "next/server";
+import { getDb } from "@/db";
+import { emails } from "@/db/schema";
+import { eq, desc, and } from "drizzle-orm";
+import { DEFAULT_ACCOUNT } from "@/lib/emailengine";
 
-function parseFrom(from: string): { name: string; email: string } {
-  const match = from.match(/^(.+?)\s*<(.+?)>$/);
-  if (match) {
-    return { name: match[1].trim(), email: match[2].trim() };
-  }
-  return { name: from, email: from };
-}
+const FOLDER_MAP: Record<string, string> = {
+  "INBOX": "INBOX",
+  "\\Sent": "SENT",
+  "\\Drafts": "DRAFTS",
+  "\\Trash": "TRASH",
+  "\\Archive": "ARCHIVE",
+  "SENT": "SENT",
+  "DRAFTS": "DRAFTS",
+  "TRASH": "TRASH",
+  "ARCHIVE": "ARCHIVE",
+};
 
-export async function GET() {
-  const apiKey = process.env.AGENTMAIL_API_KEY;
-  const inboxId = process.env.AGENTMAIL_INBOX_ID;
-
-  if (!apiKey || !inboxId) {
-    return NextResponse.json({ error: "Missing credentials" }, { status: 500 });
-  }
-
-  const client = new AgentMailClient({ apiKey });
-
+export async function GET(req: NextRequest) {
   try {
-    const res = await client.inboxes.messages.list(inboxId, {
-      limit: 50,
-      includeUnauthenticated: true,
-    });
+    const { searchParams } = new URL(req.url);
+    const path = searchParams.get("path") || "INBOX";
+    const account = searchParams.get("account") || DEFAULT_ACCOUNT;
+    const dbFolder = FOLDER_MAP[path] || "INBOX";
 
-    const mails = res.messages.map((msg) => {
-      const { name, email } = parseFrom(msg.from);
-      return {
-        id: msg.messageId,
-        name,
-        email,
-        subject: msg.subject ?? "(no subject)",
-        text: msg.preview ?? "",
-        date: typeof msg.timestamp === "string" ? msg.timestamp : (msg.timestamp as Date).toISOString(),
-        read: msg.labels.includes("read"),
-        labels: msg.labels,
-        hasAttachments: (msg.attachments?.length ?? 0) > 0,
-      };
-    });
+    const db = await getDb();
+
+    const rows = await db.select()
+      .from(emails)
+      .where(and(eq(emails.folder, dbFolder), eq(emails.account, account)))
+      .orderBy(desc(emails.receivedAt))
+      .limit(100);
+
+    const mails = rows.map((msg) => ({
+      id: msg.id,
+      name: msg.fromName || msg.fromEmail,
+      email: msg.fromEmail,
+      subject: msg.subject || "(no subject)",
+      text: msg.bodyText || "",
+      date: msg.receivedAt,
+      read: msg.seen,
+      labels: [msg.folder.toLowerCase()],
+      hasAttachments: msg.hasAttachments,
+      threadId: msg.threadId,
+    }));
 
     return NextResponse.json({ mails });
   } catch (err) {
-    console.error("AgentMail fetch error:", err);
+    console.error("DB fetch error:", err);
     return NextResponse.json({ error: "Failed to fetch mails" }, { status: 500 });
   }
 }

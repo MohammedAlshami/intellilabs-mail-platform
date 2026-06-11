@@ -108,6 +108,55 @@ export const emailLists = sqliteTable("email_lists", {
   createdAt: text("created_at").notNull(),
 });
 
+export const emails = sqliteTable("emails", {
+  id: text("id").primaryKey(),
+  messageId: text("message_id").default(""),
+  emailengineId: text("emailengine_id").default(""),
+  account: text("account").notNull().default("ahmad"),
+  fromName: text("from_name").default(""),
+  fromEmail: text("from_email").notNull(),
+  toEmail: text("to_email").default(""),
+  cc: text("cc").default(""),
+  bcc: text("bcc").default(""),
+  subject: text("subject").default(""),
+  bodyText: text("body_text").default(""),
+  bodyHtml: text("body_html").default(""),
+  folder: text("folder").notNull().default("INBOX"),
+  threadId: text("thread_id").default(""),
+  inReplyTo: text("in_reply_to").default(""),
+  references: text("references_header").default(""),
+  seen: integer("seen", { mode: "boolean" }).default(false),
+  flagged: integer("flagged", { mode: "boolean" }).default(false),
+  hasAttachments: integer("has_attachments", { mode: "boolean" }).default(false),
+  size: integer("size").default(0),
+  direction: text("direction").default("inbound"),
+  receivedAt: text("received_at").notNull(),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const emailAttachments = sqliteTable("email_attachments", {
+  id: text("id").primaryKey(),
+  emailId: text("email_id").notNull(),
+  filename: text("filename").default(""),
+  contentType: text("content_type").default(""),
+  size: integer("size").default(0),
+  emailengineAttachmentId: text("emailengine_attachment_id").default(""),
+  localPath: text("local_path").default(""),
+  createdAt: text("created_at").notNull(),
+});
+
+export const emailThreads = sqliteTable("email_threads", {
+  id: text("id").primaryKey(),
+  subject: text("subject").notNull(),
+  account: text("account").notNull().default("ahmad"),
+  latestDate: text("latest_date").notNull(),
+  messageCount: integer("message_count").default(1),
+  participants: text("participants").default("[]"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
 export const sendingHistory = sqliteTable("sending_history", {
   id: text("id").primaryKey(),
   campaign: text("campaign").notNull(),

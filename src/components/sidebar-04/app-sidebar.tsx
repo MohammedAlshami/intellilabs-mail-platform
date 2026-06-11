@@ -1,6 +1,6 @@
 "use client";
 
-import { Paperclip, Send, Mail as MailIcon, Globe, Users, ShieldOff, LayoutDashboard, History, AlertTriangle, Sparkles, ScrollText, BarChart3, ShieldCheck, List, UserCog, Plus, PanelLeftClose, PanelLeft, SquarePen } from "lucide-react";
+import { Paperclip, Send, Mail as MailIcon, Globe, Users, ShieldOff, LayoutDashboard, History, AlertTriangle, Sparkles, ScrollText, BarChart3, ShieldCheck, List, UserCog, Plus, PanelLeftClose, PanelLeft, SquarePen, MoreVertical, Archive, Trash2, Check, X as XIcon } from "lucide-react";
 import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
 
@@ -18,12 +18,21 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import {
   IconBrandAmongUs,
   IconMailbox,
 } from "@tabler/icons-react";
-import { useMail } from "@/components/sidebar-04/mail-context";
+import { useMail, type FolderTab, type Mail } from "@/components/sidebar-04/mail-context";
 import { NavUser } from "@/components/sidebar-04/nav-user";
 import { useAiPanel } from "@/contexts/ai-panel-context";
+import { Compose } from "@/components/compose";
 
 const navGroups = [
   {
@@ -68,12 +77,39 @@ const user = {
   avatar: "/avatar-01.png",
 };
 
+const FOLDER_LABELS: Record<FolderTab, string> = {
+  inbox: "Inbox",
+  sent: "Sent",
+  drafts: "Drafts",
+  trash: "Trash",
+  archive: "Archive",
+};
+
+const FOLDER_PATH: Record<FolderTab, string> = {
+  inbox: "INBOX",
+  sent: "\\Sent",
+  drafts: "\\Drafts",
+  trash: "\\Trash",
+  archive: "\\Archive",
+};
+
+async function performAction(mailId: string, action: string) {
+  try {
+    await fetch(`/api/mails/${mailId}/actions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action }),
+    });
+  } catch {}
+}
+
 export function AppSidebar({ collapsed, setCollapsed, ...props }: { collapsed: boolean; setCollapsed: (v: boolean) => void } & React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
   const router = useRouter();
   const [query, setQuery] = React.useState("");
-  const { mails, loading, setSelectedMail } = useMail();
+  const { mails, loading, setSelectedMail, folder, setFolder } = useMail();
   const { toggle: toggleAi } = useAiPanel();
+  const [composeOpen, setComposeOpen] = React.useState(false);
 
   const filteredMails = React.useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -162,24 +198,54 @@ export function AppSidebar({ collapsed, setCollapsed, ...props }: { collapsed: b
         collapsible="none"
         className="hidden flex-1 border-r md:flex min-w-96"
       >
-        <SidebarHeader className="gap-3.5 border-b p-4">
+        <Compose open={composeOpen} onOpenChange={setComposeOpen} />
+        <SidebarHeader className="gap-2 border-b p-4">
           <div className="flex w-full items-center justify-between">
             <div className="text-foreground text-base font-medium">
-              Inbox
+              {FOLDER_LABELS[folder]}
             </div>
+            <button
+              onClick={() => setComposeOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-md bg-primary text-primary-foreground px-3 py-1.5 text-xs font-medium hover:bg-primary/90 transition-colors"
+            >
+              <SquarePen className="h-3.5 w-3.5" />
+              New
+            </button>
           </div>
           <SidebarInput
             placeholder="Type to search..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
+          <div className="flex gap-1 -mx-1">
+            {(Object.keys(FOLDER_LABELS) as FolderTab[]).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setFolder(tab)}
+                className={cn(
+                  "px-2.5 py-1 text-xs rounded-md font-medium transition-colors",
+                  folder === tab
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                )}
+              >
+                {FOLDER_LABELS[tab]}
+              </button>
+            ))}
+          </div>
         </SidebarHeader>
         <SidebarContent>
           <SidebarGroup className="px-0 pt-0">
             <SidebarGroupContent>
               {loading && (
-                <div className="text-muted-foreground p-4 text-sm">
-                  Loading emails...
+                <div className="p-4 space-y-3">
+                  {[1,2,3,4,5].map((i) => (
+                    <div key={i} className="space-y-2 animate-pulse">
+                      <div className="h-4 w-3/4 rounded bg-muted" />
+                      <div className="h-3 w-1/2 rounded bg-muted" />
+                      <div className="h-3 w-full rounded bg-muted" />
+                    </div>
+                  ))}
                 </div>
               )}
               {!loading && filteredMails.length === 0 && (
@@ -188,31 +254,62 @@ export function AppSidebar({ collapsed, setCollapsed, ...props }: { collapsed: b
                 </div>
               )}
               {filteredMails.map((mail) => (
-                <a
-                  href="#"
+                <MailListItem
                   key={mail.id}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setSelectedMail(mail);
-                  }}
-                  className="hover:bg-sidebar-accent hover:text-sidebar-accent-foreground flex flex-col items-start gap-2 border-b p-4 text-sm leading-tight whitespace-nowrap"
-                >
-                  <div className="flex w-full items-center gap-2">
-                    <span>{mail.name}</span>
-                    {mail.hasAttachments && <Paperclip className="h-3 w-3 shrink-0 text-muted-foreground" />}
-                    <span className="ml-auto text-xs">{formatDate(mail.date)}</span>
-                  </div>
-                  <span className="font-medium">{mail.subject}</span>
-                  <span className="line-clamp-2 w-[260px] text-xs whitespace-break-spaces">
-                    {mail.teaser}
-                  </span>
-                </a>
+                  mail={mail}
+                  onSelect={() => setSelectedMail(mail)}
+                />
               ))}
             </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>
       </Sidebar>
       )}
+    </div>
+  );
+}
+
+function MailListItem({ mail, onSelect }: { mail: Mail; onSelect: () => void }) {
+  return (
+    <div className="group relative">
+      <a
+        href="#"
+        onClick={(e) => { e.preventDefault(); onSelect(); }}
+        className="hover:bg-sidebar-accent hover:text-sidebar-accent-foreground flex flex-col items-start gap-2 border-b p-4 text-sm leading-tight whitespace-nowrap"
+      >
+        <div className="flex w-full items-center gap-2">
+          <span>{mail.name}</span>
+          {mail.hasAttachments && <Paperclip className="h-3 w-3 shrink-0 text-muted-foreground" />}
+          <span className="ml-auto text-xs">{formatDate(mail.date)}</span>
+        </div>
+        <span className="font-medium">{mail.subject}</span>
+        <span className="line-clamp-2 w-[260px] text-xs whitespace-break-spaces">
+          {mail.teaser}
+        </span>
+      </a>
+      <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-7 w-7">
+              <MoreVertical className="h-3.5 w-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-40">
+            <DropdownMenuItem onClick={() => performAction(mail.id, "archive")}>
+              <Archive className="mr-2 h-4 w-4" /> Archive
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => performAction(mail.id, "trash")}>
+              <Trash2 className="mr-2 h-4 w-4" /> Trash
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => performAction(mail.id, "read")}>
+              <Check className="mr-2 h-4 w-4" /> Mark read
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => performAction(mail.id, "unread")}>
+              <XIcon className="mr-2 h-4 w-4" /> Mark unread
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </div>
   );
 }

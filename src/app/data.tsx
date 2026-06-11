@@ -1,36 +1,75 @@
 export type Attachment = {
-  attachmentId: string
-  filename?: string
-  size?: number
-  contentType?: string
-}
+  attachmentId: string;
+  filename?: string;
+  size?: number;
+  contentType?: string;
+};
 
 export type Mail = {
-  id: string
-  name: string
-  email: string
-  subject: string
-  text: string
-  date: string
-  read: boolean
-  labels: string[]
-  hasAttachments?: boolean
-  attachments?: Attachment[]
-}
+  id: string;
+  name: string;
+  email: string;
+  subject: string;
+  text: string;
+  date: string;
+  read: boolean;
+  labels: string[];
+  hasAttachments?: boolean;
+  attachments?: Attachment[];
+};
 
 export const accounts = [
   {
-    label: "Inbox",
-    email: "trueventus@agentmail.to",
+    label: "Ahmad",
+    email: "ahmad@demo-project-mail.xyz",
     icon: (
-      <svg role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <title>AgentMail</title>
-        <path d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.91 1.528-1.145C21.69 2.28 24 3.434 24 5.457z"
-          fill="currentColor"
-        />
+      <svg role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" className="h-4 w-4">
+        <rect width="24" height="24" rx="4" fill="currentColor" opacity="0.2" />
+        <text x="12" y="16" textAnchor="middle" fontSize="12" fill="currentColor" fontWeight="bold">A</text>
       </svg>
     ),
   },
-]
+  {
+    label: "Siti",
+    email: "siti@demo-project-mail.xyz",
+    icon: (
+      <svg role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" className="h-4 w-4">
+        <rect width="24" height="24" rx="4" fill="currentColor" opacity="0.2" />
+        <text x="12" y="16" textAnchor="middle" fontSize="12" fill="currentColor" fontWeight="bold">S</text>
+      </svg>
+    ),
+  },
+  {
+    label: "Ryan",
+    email: "ryan@demo-project-mail.xyz",
+    icon: (
+      <svg role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" className="h-4 w-4">
+        <rect width="24" height="24" rx="4" fill="currentColor" opacity="0.2" />
+        <text x="12" y="16" textAnchor="middle" fontSize="12" fill="currentColor" fontWeight="bold">R</text>
+      </svg>
+    ),
+  },
+  {
+    label: "Nurul",
+    email: "nurul@demo-project-mail.xyz",
+    icon: (
+      <svg role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" className="h-4 w-4">
+        <rect width="24" height="24" rx="4" fill="currentColor" opacity="0.2" />
+        <text x="12" y="16" textAnchor="middle" fontSize="12" fill="currentColor" fontWeight="bold">N</text>
+      </svg>
+    ),
+  },
+  {
+    label: "David",
+    email: "david@demo-project-mail.xyz",
+    icon: (
+      <svg role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" className="h-4 w-4">
+        <rect width="24" height="24" rx="4" fill="currentColor" opacity="0.2" />
+        <text x="12" y="16" textAnchor="middle" fontSize="12" fill="currentColor" fontWeight="bold">D</text>
+      </svg>
+    ),
+  },
 
-export type Account = (typeof accounts)[number]
+];
+
+export type Account = (typeof accounts)[number];

@@ -28,18 +28,17 @@ export function AttachmentPreview({ attachment, open, onOpenChange }: Attachment
     if (!open || !isImage) return
     setLoadingPreview(true)
     fetch(downloadUrl)
-      .then((res) => {
-        const location = res.headers.get("location")
-        if (location) {
-          setImageUrl(location)
-        } else {
-          res.json().then((data) => {
-            if (data.downloadUrl) setImageUrl(data.downloadUrl)
-          })
-        }
+      .then(async (res) => {
+        if (!res.ok) throw new Error("Failed to fetch attachment")
+        const blob = await res.blob()
+        const url = URL.createObjectURL(blob)
+        setImageUrl(url)
       })
       .catch(console.error)
       .finally(() => setLoadingPreview(false))
+    return () => {
+      if (imageUrl) URL.revokeObjectURL(imageUrl)
+    }
   }, [open, isImage, downloadUrl])
 
   return (
