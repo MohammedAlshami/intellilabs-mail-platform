@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { Suspense, useState, useEffect, useRef } from 'react';
 import { Plus, ChevronLeft, ChevronRight, ArrowUpRight, Check, Send, Eye, EyeOff } from 'lucide-react';
 import { IconCheck } from '@tabler/icons-react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -52,7 +52,7 @@ const PROGRESS_STEPS: Step[] = [
   { id: 5, type: 'open', title: 'Finalizing', description: 'Updating campaign status', activityTime: 'Waiting...' },
 ];
 
-export default function CampaignPage() {
+function CampaignPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -594,4 +594,8 @@ export default function CampaignPage() {
       </Sheet>
     </MainLayout>
   );
+}
+
+export default function CampaignPage() {
+  return <Suspense fallback={null}><CampaignPageInner /></Suspense>;
 }

@@ -12,6 +12,7 @@ export const websites = sqliteTable("websites", {
   summary: text("summary").default(""),
   services: text("services").default("[]"),
   scrapeStatus: text("scrape_status").default("idle"),
+  scrapeProgress: text("scrape_progress").default("{}"),
   createdAt: text("created_at").notNull(),
 });
 

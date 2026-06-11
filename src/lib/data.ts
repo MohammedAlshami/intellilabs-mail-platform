@@ -10,6 +10,7 @@ export type Website = {
   summary?: string;
   services?: string[];
   scrapeStatus?: "idle" | "scraping" | "done" | "error";
+  scrapeProgress?: Record<string, any>;
   createdAt: string;
 };
 
