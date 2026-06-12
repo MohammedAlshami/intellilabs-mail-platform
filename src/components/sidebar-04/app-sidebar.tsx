@@ -2,6 +2,7 @@
 import { Paperclip, Send, Mail as MailIcon, Globe, Users, ShieldOff, LayoutDashboard, History, AlertTriangle, Sparkles, ScrollText, BarChart3, ShieldCheck, List, UserCog, PanelLeftClose, PanelLeft, SquarePen, MoreVertical, Archive, Trash2, Check, X as XIcon, FileText, PenLine, Menu } from "lucide-react";
 import * as React from "react"; import { usePathname, useRouter } from "next/navigation";
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarInput, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button"; import { cn } from "@/lib/utils";
 import { IconBrandAmongUs, IconMailbox } from "@tabler/icons-react";
@@ -20,34 +21,53 @@ const FOLDER_LABELS: Record<FolderTab, string> = { inbox: "Inbox", sent: "Sent",
 
 async function performAction(mailId: string, action: string) { try { await fetch(`/api/mails/${mailId}/actions`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }) }); } catch {} }
 
+function SidebarContent_({ collapsed, setCollapsed }: { collapsed: boolean; setCollapsed: (v: boolean) => void }) {
+  const pathname = usePathname(); const router = useRouter();
+  const { toggle: toggleAi } = useAiPanel();
+  const [user, setUser] = React.useState(defaultUser);
+  React.useEffect(() => { fetch("/api/profile").then(r => r.json()).then(d => { if (d.name || d.email) setUser({ name: d.name || d.email, email: d.email, avatar: "" }); }).catch(() => {}); }, []);
+  return (
+    <>
+      <SidebarHeader><SidebarMenu><SidebarMenuItem><div className="flex items-center justify-between px-1.5 py-1">{!collapsed && <span className="text-xs font-semibold text-foreground uppercase tracking-wider">Menu</span>}<button onClick={() => setCollapsed(!collapsed)} className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors" title={collapsed ? "Expand sidebar" : "Collapse sidebar"}>{collapsed ? <PanelLeft className="size-4" /> : <PanelLeftClose className="size-4" />}</button></div></SidebarMenuItem></SidebarMenu></SidebarHeader>
+      <SidebarContent>
+        {navGroups.map(g => (
+          <SidebarGroup key={g.label}><SidebarGroupLabel className={`px-1.5 md:px-0 text-xs flex items-center justify-between ${collapsed ? 'justify-center' : ''}`}>{collapsed ? null : g.label}</SidebarGroupLabel>
+            <SidebarGroupContent className="px-1.5 md:px-0"><SidebarMenu>{g.routes.map(r => (<SidebarMenuItem key={r.path}><SidebarMenuButton onClick={() => router.push(r.path)} isActive={pathname === r.path} className={`px-2.5 md:px-2 ${collapsed ? 'justify-center' : ''}`} title={collapsed ? r.title : undefined}><r.icon />{!collapsed && <span>{r.title}</span>}</SidebarMenuButton></SidebarMenuItem>))}</SidebarMenu></SidebarGroupContent></SidebarGroup>
+        ))}
+      </SidebarContent>
+      <SidebarFooter><SidebarMenu><SidebarMenuItem><SidebarMenuButton onClick={toggleAi} className={`text-gray-500 hover:text-gray-700 ${collapsed ? 'justify-center' : ''}`}><Sparkles className="size-4" />{!collapsed && <span>AI Assistant</span>}</SidebarMenuButton></SidebarMenuItem></SidebarMenu>{!collapsed && <NavUser user={{ name: user.name, email: user.email, avatar: user.avatar }} />}</SidebarFooter>
+    </>
+  );
+}
+
 export function AppSidebar({ collapsed, setCollapsed, ...props }: { collapsed: boolean; setCollapsed: (v: boolean) => void } & React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname(); const router = useRouter(); const [query, setQuery] = React.useState("");
   const { mails, loading, setSelectedMail, folder, setFolder } = useMail(); const { toggle: toggleAi } = useAiPanel(); const [composeOpen, setComposeOpen] = React.useState(false);
-  const [user, setUser] = React.useState(defaultUser);
-  const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
-  React.useEffect(() => { fetch("/api/profile").then(r => r.json()).then(d => { if (d.name || d.email) setUser({ name: d.name || d.email, email: d.email, avatar: "" }); }).catch(() => {}); }, []);
-  React.useEffect(() => { setMobileMenuOpen(false); }, [pathname]);
+  const [mobileOpen, setMobileOpen] = React.useState(false);
   const filteredMails = React.useMemo(() => { const q = query.trim().toLowerCase(); if (!q) return mails; return mails.filter(m => [m.name, m.email, m.subject, m.teaser].join("\n").toLowerCase().includes(q)); }, [mails, query]);
   return (
     <div className="flex">
       {/* Mobile hamburger button */}
-      <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="fixed top-2 left-2 z-50 p-2 rounded-md bg-background border shadow-sm md:hidden">
+      <button onClick={() => setMobileOpen(true)} className="fixed top-2 left-2 z-50 p-2 rounded-md bg-background border shadow-sm md:hidden">
         <Menu className="size-5" />
       </button>
-      {/* Mobile overlay backdrop */}
-      {mobileMenuOpen && <div className="fixed inset-0 z-40 bg-black/50 md:hidden" onClick={() => setMobileMenuOpen(false)} />}
-      <Sidebar collapsible="none" className={`border-r p-2 px-1 transition-[width] duration-300 ease-in-out ${mobileMenuOpen ? 'fixed left-0 top-0 z-50 h-full' : 'hidden md:flex'} ${collapsed ? 'w-[4.5rem]' : ''}`}>
-        <SidebarHeader><SidebarMenu><SidebarMenuItem><div className="flex items-center justify-between px-1.5 py-1">{!collapsed && <span className="text-xs font-semibold text-foreground uppercase tracking-wider">Menu</span>}<button onClick={() => setCollapsed(!collapsed)} className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors" title={collapsed ? "Expand sidebar" : "Collapse sidebar"}>{collapsed ? <PanelLeft className="size-4" /> : <PanelLeftClose className="size-4" />}</button></div></SidebarMenuItem></SidebarMenu></SidebarHeader>
-        <SidebarContent>
-          {navGroups.map(g => (
-            <SidebarGroup key={g.label}><SidebarGroupLabel className={`px-1.5 md:px-0 text-xs flex items-center justify-between ${collapsed ? 'justify-center' : ''}`}>{collapsed ? null : g.label}</SidebarGroupLabel>
-              <SidebarGroupContent className="px-1.5 md:px-0"><SidebarMenu>{g.routes.map(r => (<SidebarMenuItem key={r.path}><SidebarMenuButton onClick={() => router.push(r.path)} isActive={pathname === r.path} className={`px-2.5 md:px-2 ${collapsed ? 'justify-center' : ''}`} title={collapsed ? r.title : undefined}><r.icon />{!collapsed && <span>{r.title}</span>}</SidebarMenuButton></SidebarMenuItem>))}</SidebarMenu></SidebarGroupContent></SidebarGroup>
-          ))}
-        </SidebarContent>
-        <SidebarFooter><SidebarMenu><SidebarMenuItem><SidebarMenuButton onClick={toggleAi} className={`text-gray-500 hover:text-gray-700 ${collapsed ? 'justify-center' : ''}`}><Sparkles className="size-4" />{!collapsed && <span>AI Assistant</span>}</SidebarMenuButton></SidebarMenuItem></SidebarMenu>{!collapsed && <NavUser user={{ name: user.name, email: user.email, avatar: user.avatar }} />}</SidebarFooter>
+
+      {/* Mobile sidebar via Sheet */}
+      <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+        <SheetContent side="left" className="p-0 w-[18rem]">
+          <Sidebar collapsible="icon" className="border-0 w-full">
+            <SidebarContent_ collapsed={false} setCollapsed={() => {}} />
+          </Sidebar>
+        </SheetContent>
+      </Sheet>
+
+      {/* Desktop sidebar */}
+      <Sidebar collapsible="none" className="hidden md:flex border-r p-2 px-1 transition-[width] duration-300 ease-in-out">
+        <SidebarContent_ collapsed={collapsed} setCollapsed={setCollapsed} />
       </Sidebar>
+
       {pathname === "/mail" && (
-        <Sidebar collapsible="none" className="hidden flex-1 border-r md:flex min-w-[28rem] w-[28rem]">
+        <Sidebar collapsible="none" className="hidden md:flex flex-1 border-r min-w-[24rem] w-[24rem]">
           <Compose open={composeOpen} onOpenChange={setComposeOpen} />
           <SidebarHeader className="gap-2 border-b p-4">
             <div className="flex w-full items-center justify-between"><div className="text-foreground text-base font-medium">{FOLDER_LABELS[folder]}</div><button onClick={() => setComposeOpen(true)} className="inline-flex items-center gap-1.5 rounded-md bg-primary text-primary-foreground px-3 py-1.5 text-xs font-medium hover:bg-primary/90 transition-colors"><SquarePen className="h-3.5 w-3.5" />New</button></div>
