@@ -1,5 +1,5 @@
 "use client";
-import { Paperclip, Send, Mail as MailIcon, Globe, Users, ShieldOff, LayoutDashboard, History, AlertTriangle, Sparkles, ScrollText, BarChart3, ShieldCheck, List, UserCog, PanelLeftClose, PanelLeft, SquarePen, MoreVertical, Archive, Trash2, Check, X as XIcon, FileText, PenLine } from "lucide-react";
+import { Paperclip, Send, Mail as MailIcon, Globe, Users, ShieldOff, LayoutDashboard, History, AlertTriangle, Sparkles, ScrollText, BarChart3, ShieldCheck, List, UserCog, PanelLeftClose, PanelLeft, SquarePen, MoreVertical, Archive, Trash2, Check, X as XIcon, FileText, PenLine, Menu } from "lucide-react";
 import * as React from "react"; import { usePathname, useRouter } from "next/navigation";
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarInput, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -24,11 +24,19 @@ export function AppSidebar({ collapsed, setCollapsed, ...props }: { collapsed: b
   const pathname = usePathname(); const router = useRouter(); const [query, setQuery] = React.useState("");
   const { mails, loading, setSelectedMail, folder, setFolder } = useMail(); const { toggle: toggleAi } = useAiPanel(); const [composeOpen, setComposeOpen] = React.useState(false);
   const [user, setUser] = React.useState(defaultUser);
+  const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   React.useEffect(() => { fetch("/api/profile").then(r => r.json()).then(d => { if (d.name || d.email) setUser({ name: d.name || d.email, email: d.email, avatar: "" }); }).catch(() => {}); }, []);
+  React.useEffect(() => { setMobileMenuOpen(false); }, [pathname]);
   const filteredMails = React.useMemo(() => { const q = query.trim().toLowerCase(); if (!q) return mails; return mails.filter(m => [m.name, m.email, m.subject, m.teaser].join("\n").toLowerCase().includes(q)); }, [mails, query]);
   return (
     <div className="flex">
-      <Sidebar collapsible="none" className={`border-r p-2 px-1 transition-[width] duration-300 ease-in-out ${collapsed ? 'w-[4.5rem]' : ''}`}>
+      {/* Mobile hamburger button */}
+      <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="fixed top-2 left-2 z-50 p-2 rounded-md bg-background border shadow-sm md:hidden">
+        <Menu className="size-5" />
+      </button>
+      {/* Mobile overlay backdrop */}
+      {mobileMenuOpen && <div className="fixed inset-0 z-40 bg-black/50 md:hidden" onClick={() => setMobileMenuOpen(false)} />}
+      <Sidebar collapsible="none" className={`border-r p-2 px-1 transition-[width] duration-300 ease-in-out ${mobileMenuOpen ? 'fixed left-0 top-0 z-50 h-full' : 'hidden md:flex'} ${collapsed ? 'w-[4.5rem]' : ''}`}>
         <SidebarHeader><SidebarMenu><SidebarMenuItem><div className="flex items-center justify-between px-1.5 py-1">{!collapsed && <span className="text-xs font-semibold text-foreground uppercase tracking-wider">Menu</span>}<button onClick={() => setCollapsed(!collapsed)} className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors" title={collapsed ? "Expand sidebar" : "Collapse sidebar"}>{collapsed ? <PanelLeft className="size-4" /> : <PanelLeftClose className="size-4" />}</button></div></SidebarMenuItem></SidebarMenu></SidebarHeader>
         <SidebarContent>
           {navGroups.map(g => (
