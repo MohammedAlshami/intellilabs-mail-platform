@@ -2,7 +2,7 @@
 import * as React from "react";
 
 export type Attachment = { attachmentId: string; filename?: string; size?: number; contentType?: string };
-export type Mail = { id: string; name: string; email: string; subject: string; date: string; teaser: string; text?: string; labels?: string[]; hasAttachments?: boolean; attachments?: Attachment[]; threadMessages?: { id: string; from: { name: string; email: string }; text: string; date: string }[] };
+export type Mail = { id: string; threadId?: string | null; name: string; email: string; subject: string; date: string; teaser: string; text?: string; labels?: string[]; hasAttachments?: boolean; attachments?: Attachment[]; messageCount?: number; threadMessages?: { id: string; from: { name: string; email: string }; text: string; date: string }[] };
 export type FolderTab = "inbox" | "sent" | "drafts" | "trash" | "archive";
 export type EmailAnalysis = { sentiment: "positive" | "negative" | "neutral"; reasoning: string; suggestedReply: string };
 

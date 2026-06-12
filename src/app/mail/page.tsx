@@ -84,14 +84,19 @@ function MailPreview() {
     if (!selectedMail?.id) return;
     const mid = selectedMail.id;
     if (!selectedMail.text) {
-      // Fetch all messages in the thread
-      fetch(`/api/mails?threadId=${encodeURIComponent(mid)}`).then(r => r.json()).then(d => {
-        const msgs = d.messages || [];
-        if (msgs.length > 0) {
-          const latest = msgs[0];
-          setSelectedMail({ ...selectedMail, text: latest.text, labels: latest.labels || [], threadMessages: msgs });
-        }
-      }).catch(console.error).finally(() => setLoadingContent(false));
+      // If it has a threadId, fetch all messages in thread; otherwise fetch single email
+      if (selectedMail.threadId) {
+        fetch(`/api/mails?threadId=${encodeURIComponent(selectedMail.threadId)}`).then(r => r.json()).then(d => {
+          const msgs = d.messages || [];
+          if (msgs.length > 0) {
+            const latest = msgs[0];
+            setSelectedMail({ ...selectedMail, text: latest.text, threadMessages: msgs });
+          }
+          setLoadingContent(false);
+        }).catch(console.error).finally(() => setLoadingContent(false));
+      } else {
+        fetch(`/api/mails/${mid}`).then(r => r.json()).then(d => { if (d.error) return; setSelectedMail({ ...selectedMail, text: d.text, labels: d.labels, attachments: d.attachments }); }).catch(console.error).finally(() => setLoadingContent(false));
+      }
       fetch(`/api/mails/${mid}/analyze`).then(r => r.json()).then(d => { if (d.sentiment) setAnalysis(mid, d); }).catch(() => {}).finally(() => setLoadingAnalysis(false));
     }
     if (!analysis[mid]) {
@@ -177,7 +182,7 @@ function MailApp() {
   useEffect(() => {
     setLoading(true);
     const path = FOLDER_API_PATH[folder] || "INBOX";
-    fetch(`/api/mails?path=${encodeURIComponent(path)}`).then(r => r.json()).then(d => { const items = d.threads || d.mails || []; setMails(items.map((m: any) => ({ id: m.threadId || m.id, name: m.from?.name || m.name || m.email || "", email: m.from?.email || m.email || "", subject: m.subject, date: m.date, teaser: m.preview || m.text?.substring(0, 300) ?? "", labels: m.labels || [], hasAttachments: m.hasAttachments, messageCount: m.messageCount }))); }).catch(console.error).finally(() => setLoading(false));
+    fetch(`/api/mails?path=${encodeURIComponent(path)}`).then(r => r.json()).then(d => { const items = d.threads || d.mails || []; setMails(items.map((m: any) => ({ id: m.threadId || m.id, threadId: m.threadId || null, name: (m.from?.name || m.name || m.email || ""), email: (m.from?.email || m.email || ""), subject: m.subject, date: m.date, teaser: (m.preview || (m.text || "").substring(0, 300) || ""), labels: m.labels || [], hasAttachments: m.hasAttachments, messageCount: m.messageCount }))); }).catch(console.error).finally(() => setLoading(false));
   }, [folder]);
   return <MailPreview />;
 }

@@ -45,6 +45,8 @@ const users = [
   { email: "admin@intellilabs.com", password: "admin123", name: "Admin User", roleId: "1" },
   { email: "manager@intellilabs.com", password: "manager123", name: "Manager User", roleId: "2" },
   { email: "viewer@intellilabs.com", password: "viewer123", name: "Viewer User", roleId: "3" },
+  { email: "ahmad@demo-project-mail.xyz", password: "ahmad123", name: "Ahmad", roleId: "2" },
+  { email: "siti@demo-project-mail.xyz", password: "siti123", name: "Siti", roleId: "2" },
 ];
 for (const u of users) {
   const hash = bcrypt.hashSync(u.password, 10);
@@ -87,19 +89,21 @@ console.log("Leads seeded");
 
 // Seed sample emails
 const accounts = { ahmad: "ahmad@demo-project-mail.xyz", siti: "siti@demo-project-mail.xyz", ryan: "ryan@demo-project-mail.xyz" };
-const sampleSubjects = [
-  "Q4 Strategy Meeting - Save the Date",
-  "Project update for Q3",
-  "Meeting request for next week",
-  "Re: Campaign feedback request",
+const threadPool = [String(Date.now()), String(Date.now() + 1)];
+const sampleEmails = [
+  { account: "ahmad", subject: "Q4 Strategy Meeting - Save the Date", from: "siti", text: "Hi Ahmad,\n\nI'd like to invite you to our Q4 strategy meeting on Friday. We'll discuss the roadmap for next quarter.\n\nBest,\nSiti", threadId: threadPool[0] },
+  { account: "siti", subject: "Re: Q4 Strategy Meeting - Save the Date", from: "ahmad", text: "Thanks Siti, I'll be there. Can you share the agenda beforehand?", threadId: threadPool[0] },
+  { account: "ahmad", subject: "Re: Q4 Strategy Meeting - Save the Date", from: "siti", text: "Sure, I'll send it over by Wednesday.", threadId: threadPool[0] },
+  { account: "ahmad", subject: "Project update for Q3", from: "siti", text: "Hi Ahmad,\n\nHere is the latest update on the Q3 projects. We're on track to meet all milestones.\n\nRegards,\nSiti" },
+  { account: "ahmad", subject: "Meeting request for next week", from: "ryan", text: "Hey Ahmad,\n\nCan we schedule a sync next Tuesday to discuss the new feature requirements?\n\nThanks,\nRyan" },
+  { account: "siti", subject: "Campaign feedback request", from: "ahmad", text: "Hi Siti,\n\nCould you review the latest email campaign draft and share your feedback?\n\nThanks,\nAhmad", threadId: threadPool[1] },
+  { account: "ahmad", subject: "Re: Campaign feedback request", from: "siti", text: "Sure Ahmad, I'll take a look this afternoon and send you my notes.", threadId: threadPool[1] },
 ];
-for (const [acct, email] of Object.entries(accounts)) {
-  for (const subj of sampleSubjects) {
-    const id = String(Date.now() + Math.random());
-    const fromEmail = acct === "ahmad" ? "siti@demo-project-mail.xyz" : "ahmad@demo-project-mail.xyz";
-    const fromName = acct === "ahmad" ? "siti" : "ahmad";
-    sqlite.prepare(`INSERT OR IGNORE INTO emails (id, account, from_name, from_email, to_email, subject, body_text, folder, seen, direction, received_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(id, acct, fromName, fromEmail, email, subj, "Email body content here.", "INBOX", 0, "inbound", now(), now(), now());
-  }
+for (const e of sampleEmails) {
+  const id = String(Date.now() + Math.random());
+  const fromEmail = `${e.from}@demo-project-mail.xyz`;
+  const toEmail = `${e.account}@demo-project-mail.xyz`;
+  sqlite.prepare(`INSERT OR IGNORE INTO emails (id, account, from_name, from_email, to_email, subject, body_text, folder, seen, direction, thread_id, received_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(id, e.account, e.from, fromEmail, toEmail, e.subject, e.text, "INBOX", 0, "inbound", e.threadId || null, now(), now(), now());
 }
 console.log("Sample emails seeded");
 
