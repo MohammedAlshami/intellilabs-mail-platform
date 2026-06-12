@@ -5,10 +5,22 @@ const FOLDER_MAP: Record<string, string> = { "INBOX": "INBOX", "\\Sent": "SENT",
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const path = searchParams.get("path") || "INBOX";
+    const path = searchParams.get("path");
     const account = searchParams.get("account") || DEFAULT_ACCOUNT;
-    const dbFolder = FOLDER_MAP[path] || "INBOX";
+    const threadId = searchParams.get("threadId");
+
     const db = await getDb();
+
+    // If threadId is provided, return all messages in that thread
+    if (threadId) {
+      const rows = await db.select().from(emails).where(and(eq(emails.threadId, threadId), eq(emails.account, account))).orderBy(desc(emails.receivedAt));
+      const messages = rows.map(msg => ({
+        id: msg.id, threadId: msg.threadId, from: { name: msg.fromName || msg.fromEmail, email: msg.fromEmail }, to: msg.toEmail, subject: msg.subject, text: msg.bodyText || msg.bodyHtml || "", date: msg.receivedAt, read: msg.seen,
+      }));
+      return NextResponse.json({ messages });
+    }
+
+    const dbFolder = path ? (FOLDER_MAP[path] || "INBOX") : "INBOX";
     const rows = await db.select().from(emails).where(and(eq(emails.folder, dbFolder), eq(emails.account, account))).orderBy(desc(emails.receivedAt)).limit(200);
     // Group by threadId
     const threadMap = new Map<string, any[]>();

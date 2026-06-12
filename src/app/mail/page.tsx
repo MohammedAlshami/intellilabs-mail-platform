@@ -84,8 +84,15 @@ function MailPreview() {
     if (!selectedMail?.id) return;
     const mid = selectedMail.id;
     if (!selectedMail.text) {
-      setLoadingContent(true);
-      fetch(`/api/mails/${mid}`).then(r => r.json()).then(d => { if (d.error) return; setSelectedMail({ ...selectedMail, text: d.text, labels: d.labels, attachments: d.attachments }); }).catch(console.error).finally(() => setLoadingContent(false));
+      // Fetch all messages in the thread
+      fetch(`/api/mails?threadId=${encodeURIComponent(mid)}`).then(r => r.json()).then(d => {
+        const msgs = d.messages || [];
+        if (msgs.length > 0) {
+          const latest = msgs[0];
+          setSelectedMail({ ...selectedMail, text: latest.text, labels: latest.labels || [], threadMessages: msgs });
+        }
+      }).catch(console.error).finally(() => setLoadingContent(false));
+      fetch(`/api/mails/${mid}/analyze`).then(r => r.json()).then(d => { if (d.sentiment) setAnalysis(mid, d); }).catch(() => {}).finally(() => setLoadingAnalysis(false));
     }
     if (!analysis[mid]) {
       setLoadingAnalysis(true);
