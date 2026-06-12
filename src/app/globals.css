@@ -205,6 +205,25 @@
   }
 }
 
+@keyframes fade-in {
+  from { opacity: 0; }
+}
+@keyframes fade-out {
+  to { opacity: 0; }
+}
+@keyframes dialog-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(-48%) scale(0.95); }
+}
+@keyframes dialog-out {
+  to { opacity: 0; transform: translateX(-50%) translateY(-48%) scale(0.95); }
+}
+@keyframes overlay-in {
+  from { opacity: 0; }
+}
+@keyframes overlay-out {
+  to { opacity: 0; }
+}
+
 /* All-in / Timeline section (Peter Riezebos–style) */
 [data-all-in-section] {
   --fs--3: clamp(0.512rem, 0.6338rem + -0.497vw, 0.6333rem);

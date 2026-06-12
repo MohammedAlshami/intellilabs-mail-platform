@@ -1,89 +1,315 @@
 "use client"
-import * as React from "react"
-import { Send, Paperclip, X, Minimize2, Maximize2, Sparkles, Bold, Italic, List, ListOrdered } from "lucide-react"
+
+import React, { useState } from "react"
 import { useEditor, EditorContent } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
+import Underline from "@tiptap/extension-underline"
+import Link from "@tiptap/extension-link"
 import Placeholder from "@tiptap/extension-placeholder"
+import {
+  Bold, Italic, Underline as UnderlineIcon, List, ListOrdered,
+  Link as LinkIcon, Paperclip, Send, X, Sparkles,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { cn } from "@/lib/utils"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Modal } from "@/components/modal"
+import { ComposeAiPanel } from "@/components/compose-ai-panel"
 
 interface Attachment { name: string; contentType: string; content: string }
-interface ComposeProps { open: boolean; onOpenChange: (open: boolean) => void; onSend?: () => void; initialTo?: string; initialSubject?: string; initialText?: string; replyMode?: boolean; inline?: boolean }
+interface ComposeProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onSend?: () => void
+  initialTo?: string
+  initialSubject?: string
+  initialText?: string
+  replyMode?: boolean
+  inline?: boolean
+}
+
+function ToolbarButton({ onClick, active, children, label }: { onClick?: () => void; active?: boolean; children: React.ReactNode; label: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      aria-pressed={!!active}
+      className={`inline-flex h-8 w-8 items-center justify-center rounded-md text-sm transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 ${active ? "bg-slate-200 text-slate-900" : "text-slate-600"}`}
+    >
+      {children}
+    </button>
+  )
+}
 
 export function Compose({ open, onOpenChange, onSend, initialTo, initialSubject, initialText, replyMode, inline }: ComposeProps) {
-  const [to, setTo] = React.useState(initialTo || ""); const [cc, setCc] = React.useState(""); const [bcc, setBcc] = React.useState(""); const [subject, setSubject] = React.useState(initialSubject || ""); const [sending, setSending] = React.useState(false); const [attachments, setAttachments] = React.useState<Attachment[]>([]); const [expanded, setExpanded] = React.useState(false); const [showCc, setShowCc] = React.useState(false); const [showBcc, setShowBcc] = React.useState(false); const [aiPrompt, setAiPrompt] = React.useState(""); const [aiStreaming, setAiStreaming] = React.useState(false); const [showAiInput, setShowAiInput] = React.useState(false);
-  const fileInputRef = React.useRef<HTMLInputElement>(null); const aiTextRef = React.useRef("")
+  const [recipients, setRecipients] = useState<string[]>(initialTo ? [initialTo] : [])
+  const [recipientInput, setRecipientInput] = useState("")
+  const [subject, setSubject] = useState(initialSubject || "")
+  const [sending, setSending] = useState(false)
+  const [attachments, setAttachments] = useState<Attachment[]>([])
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
+  const [aiPrompt, setAiPrompt] = useState("")
+  const [aiStreaming, setAiStreaming] = useState(false)
+  const [showAiInput, setShowAiInput] = useState(false)
+  const [showAiPanel, setShowAiPanel] = useState(false)
 
-  const editor = useEditor({ extensions: [StarterKit, Placeholder.configure({ placeholder: "Write your message..." })], content: initialText || "", editorProps: { attributes: { class: "text-sm max-w-none focus:outline-none min-h-[220px] px-3 py-2 leading-relaxed" } } })
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      Underline,
+      Link.configure({ openOnClick: false }),
+      Placeholder.configure({ placeholder: "Write your message..." }),
+    ],
+    content: initialText || "",
+    editorProps: {
+      attributes: {
+        class: "prose prose-sm max-w-none focus:outline-none min-h-[260px] text-slate-800",
+      },
+    },
+  })
 
   React.useEffect(() => {
-    if (initialTo) setTo(initialTo); if (initialSubject) setSubject(initialSubject);
-    if (initialText && editor) editor.commands.setContent(initialText);
-    else if (editor && !initialText) editor.commands.setContent("");
+    if (initialSubject) setSubject(initialSubject)
+    if (initialText && editor) editor.commands.setContent(initialText)
     if (editor && open && !replyMode) {
-      fetch("/api/email-signatures").then(r => r.json()).then((sigs: any[]) => { const def = sigs.find((s: any) => s.isDefault); if (def && def.content) { const cur = editor.getHTML(); if (!cur.includes(def.content.replace(/\n/g, "<br>"))) { const sigHtml = "-- <br>" + def.content.replace(/\n/g, "<br>"); editor.commands.setContent(cur ? cur + "<p><br></p>" + sigHtml : sigHtml); } } }).catch(() => {})
+      fetch("/api/email-signatures").then(r => r.json()).then((sigs: any[]) => {
+        const def = sigs.find((s: any) => s.isDefault)
+        if (def && def.content) {
+          const cur = editor.getHTML()
+          if (!cur.includes(def.content.replace(/\n/g, "<br>"))) {
+            const sigHtml = def.content.replace(/\n/g, "<br>")
+            const sigWithBorder = `<div data-signature="true" contenteditable="false" class="border-t border-slate-200 pt-3 mt-4 text-xs text-slate-400 select-none">--<br>${sigHtml}</div>`
+            editor.commands.setContent(cur + `<p><br></p>${sigWithBorder}`)
+          }
+        }
+      }).catch(() => {})
     }
-  }, [initialTo, initialSubject, initialText, editor, open, replyMode])
+  }, [initialSubject, initialText, editor, open, replyMode])
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => { const files = e.target.files; if (!files) return; const na: Attachment[] = []; for (const file of files) { const b = await fileToBase64(file); na.push({ name: file.name, contentType: file.type, content: b }); } setAttachments(p => [...p, ...na]); e.target.value = ""; }
+  const addRecipient = () => {
+    const val = recipientInput.trim()
+    if (val && !recipients.includes(val)) setRecipients([...recipients, val])
+    setRecipientInput("")
+  }
+
+  const removeRecipient = (email: string) => setRecipients(recipients.filter(r => r !== email))
+
+  const handleRecipientKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addRecipient() }
+    else if (e.key === "Backspace" && recipientInput === "" && recipients.length > 0) setRecipients(recipients.slice(0, -1))
+  }
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files) return
+    const na: Attachment[] = []
+    for (const file of files) {
+      const b = await fileToBase64(file)
+      na.push({ name: file.name, contentType: file.type, content: b })
+    }
+    setAttachments(p => [...p, ...na])
+    e.target.value = ""
+  }
+
   const removeAttachment = (i: number) => setAttachments(p => p.filter((_, j) => j !== i))
 
   const handleSend = async () => {
-    if (!to.trim()) return; setSending(true); const text = editor?.getText() || "";
-    try { const res = await fetch("/api/mails/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to, cc, bcc, subject, text, attachments: attachments.length > 0 ? attachments : undefined }) }); if (!res.ok) throw new Error("Failed"); resetForm(); onOpenChange(false); onSend?.(); } catch (err) { console.error(err) } finally { setSending(false) }
+    if (recipients.length === 0) return
+    setSending(true)
+    const text = editor?.getText() || ""
+    try {
+      const res = await fetch("/api/mails/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to: recipients.join(", "), subject, text, attachments: attachments.length > 0 ? attachments : undefined }),
+      })
+      if (!res.ok) throw new Error("Failed")
+      setRecipients([])
+      setSubject("")
+      setAttachments([])
+      if (editor) editor.commands.setContent("")
+      onOpenChange(false)
+      onSend?.()
+    } catch (err) { console.error(err) }
+    finally { setSending(false) }
   }
-
-  const resetForm = () => { setTo(""); setCc(""); setBcc(""); setSubject(""); setAttachments([]); setShowCc(false); setShowBcc(false); setAiPrompt(""); setShowAiInput(false); if (editor) editor.commands.setContent("") }
 
   const handleAiGenerate = async () => {
-    if (!aiPrompt.trim() || !editor) return; setAiStreaming(true); aiTextRef.current = ""; const ctx = editor.getText();
-    try { const res = await fetch("/api/mails/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: aiPrompt, context: ctx }) }); if (!res.ok) throw new Error("AI failed"); const reader = res.body?.getReader(); if (!reader) return; const dec = new TextDecoder(); let full = "";
-      while (true) { const { done, value } = await reader.read(); if (done) break; full += dec.decode(value, { stream: true }); const html = "<p>" + full.replace(/\n{2,}/g, "</p><p>").replace(/\n/g, "<br>") + "</p>"; editor.commands.setContent(html); }
-      setAiPrompt(""); setShowAiInput(false);
-    } catch (err) { console.error(err) } finally { setAiStreaming(false) }
+    if (!aiPrompt.trim() || !editor) return
+    setAiStreaming(true)
+    try {
+      const ctx = editor.getText()
+      const res = await fetch("/api/mails/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: aiPrompt, context: ctx }),
+      })
+      if (!res.ok) throw new Error("AI failed")
+      const reader = res.body?.getReader()
+      if (!reader) return
+      const dec = new TextDecoder()
+      let full = ""
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        full += dec.decode(value, { stream: true })
+        const html = "<p>" + full.replace(/\n{2,}/g, "</p><p>").replace(/\n/g, "<br>") + "</p>"
+        editor.commands.setContent(html)
+      }
+      setAiPrompt("")
+    } catch (err) { console.error(err) }
+    finally { setAiStreaming(false) }
   }
 
-  const handleAcceptAi = () => { setShowAiInput(false); setAiPrompt("") }
-  const handleRejectAi = () => { if (editor) editor.commands.setContent(""); setShowAiInput(false); setAiPrompt("") }
+  if (!editor) return null
 
-  if (!open && !expanded && !inline) return null; if (inline && (!open && !expanded)) return null
+  const formContent = (
+    <div className="flex min-h-0 flex-1 flex-col">
 
-  const panelContent = (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between border-b px-3 py-2 bg-muted/30">
-        <span className="text-sm font-medium">{replyMode ? "Reply" : "New Message"}</span>
-        <div className="flex items-center gap-1">
-          <button onClick={() => setExpanded(!expanded)} className="p-1 hover:bg-muted rounded transition-colors" title={expanded ? "Minimize" : "Expand"}>{expanded ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}</button>
-          <button onClick={() => { resetForm(); onOpenChange(false); }} className="p-1 hover:bg-muted rounded transition-colors"><X className="h-3.5 w-3.5" /></button>
+      <div className="flex items-start gap-3 border-b border-slate-100 px-5 py-3">
+        <span className="mt-1.5 text-sm text-slate-400">To:</span>
+        <div className="flex flex-1 flex-wrap items-center gap-1.5">
+          {recipients.map(email => (
+            <span key={email} className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-sm font-medium text-slate-700">
+              {email}
+              <button type="button" onClick={() => removeRecipient(email)} className="rounded-full p-0.5 text-slate-400 transition-colors hover:bg-slate-200 hover:text-slate-600">
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+          <input
+            type="text"
+            value={recipientInput}
+            onChange={e => setRecipientInput(e.target.value)}
+            onKeyDown={handleRecipientKeyDown}
+            onBlur={addRecipient}
+            placeholder="Add recipient..."
+            className="min-w-[140px] flex-1 bg-transparent py-1 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none"
+          />
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto p-3 space-y-2">
-        <Input placeholder="To" value={to} onChange={e => setTo(e.target.value)} className="border-0 border-b rounded-none px-0 focus-visible:ring-0 text-sm" />
-        {!showCc && !showBcc && <button onClick={() => setShowCc(true)} className="text-xs text-muted-foreground hover:text-foreground px-0">CC / BCC</button>}
-        {showCc && <Input placeholder="CC" value={cc} onChange={e => setCc(e.target.value)} className="border-0 border-b rounded-none px-0 focus-visible:ring-0 text-sm" />}
-        {showBcc && <Input placeholder="BCC" value={bcc} onChange={e => setBcc(e.target.value)} className="border-0 border-b rounded-none px-0 focus-visible:ring-0 text-sm" />}
-        {showCc && !showBcc && <button onClick={() => setShowBcc(true)} className="text-xs text-muted-foreground hover:text-foreground px-0">+ BCC</button>}
-        <Input placeholder="Subject" value={subject} onChange={e => setSubject(e.target.value)} className="border-0 border-b rounded-none px-0 focus-visible:ring-0 text-sm" />
-        {editor && <div className="flex items-center gap-1 border-b pb-1">
-          <button onClick={() => editor.chain().focus().toggleBold().run()} className={cn("p-1 rounded hover:bg-muted", editor.isActive("bold") && "bg-muted")}><Bold className="h-3.5 w-3.5" /></button>
-          <button onClick={() => editor.chain().focus().toggleItalic().run()} className={cn("p-1 rounded hover:bg-muted", editor.isActive("italic") && "bg-muted")}><Italic className="h-3.5 w-3.5" /></button>
-          <button onClick={() => editor.chain().focus().toggleBulletList().run()} className={cn("p-1 rounded hover:bg-muted", editor.isActive("bulletList") && "bg-muted")}><List className="h-3.5 w-3.5" /></button>
-          <button onClick={() => editor.chain().focus().toggleOrderedList().run()} className={cn("p-1 rounded hover:bg-muted", editor.isActive("orderedList") && "bg-muted")}><ListOrdered className="h-3.5 w-3.5" /></button>
-          <div className="ml-auto">{!showAiInput && <button onClick={() => setShowAiInput(true)} className="p-1 rounded hover:bg-muted text-yellow-600" title="AI Write"><Sparkles className="h-3.5 w-3.5" /></button>}</div>
-        </div>}
-        {showAiInput && <div className="border rounded-md p-2 bg-muted/20 space-y-2"><div className="flex items-center gap-2"><Sparkles className="h-3.5 w-3.5 text-yellow-600 shrink-0" /><Input placeholder="Describe the email you want..." value={aiPrompt} onChange={e => setAiPrompt(e.target.value)} className="text-xs border-0 h-7 focus-visible:ring-0" onKeyDown={e => { if (e.key === "Enter") handleAiGenerate(); }} /></div><div className="flex items-center justify-end gap-1">{aiStreaming ? <span className="text-xs text-muted-foreground">Generating...</span> : aiTextRef.current ? <><Button size="sm" variant="outline" onClick={handleRejectAi} className="h-7 text-xs"><X className="h-3 w-3 mr-1" />Reject</Button><Button size="sm" onClick={handleAcceptAi} className="h-7 text-xs"><Sparkles className="h-3 w-3 mr-1" />Accept</Button></> : <Button size="sm" onClick={handleAiGenerate} disabled={!aiPrompt.trim()} className="h-7 text-xs"><Sparkles className="h-3 w-3 mr-1" />Generate</Button>}</div></div>}
-        <div className="border rounded-md min-h-[220px]"><EditorContent editor={editor} /></div>
-        {attachments.length > 0 && <div className="flex flex-wrap gap-1">{attachments.map((a, i) => <span key={i} className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs">{a.name}<button onClick={() => removeAttachment(i)} className="hover:text-foreground text-muted-foreground"><X className="h-3 w-3" /></button></span>)}</div>}
+
+      <div className="flex items-center gap-3 border-b border-slate-100 px-5 py-3">
+        <span className="text-sm text-slate-400">Subject:</span>
+        <input
+          type="text"
+          value={subject}
+          onChange={e => setSubject(e.target.value)}
+          placeholder="Subject"
+          className="flex-1 bg-transparent text-sm font-medium text-slate-800 focus:outline-none"
+        />
       </div>
-      <div className="flex items-center justify-between border-t px-3 py-2"><div className="flex items-center gap-1"><Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => fileInputRef.current?.click()}><Paperclip className="h-4 w-4" /></Button><input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileSelect} /></div><Button onClick={handleSend} disabled={!to.trim() || sending} size="sm" className="h-8"><Send className="mr-1.5 h-3.5 w-3.5" />{sending ? "Sending..." : "Send"}</Button></div>
+
+      <div className="px-5 py-4">
+        <EditorContent editor={editor} />
+      </div>
+
+      {attachments.length > 0 && (
+        <div className="flex flex-wrap gap-1 px-5 pb-2">
+          {attachments.map((a, i) => (
+            <span key={i} className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+              {a.name}
+              <button onClick={() => removeAttachment(i)} className="text-slate-400 hover:text-slate-600"><X className="h-3 w-3" /></button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {showAiInput && (
+        <div className="mx-5 mb-3 rounded-md border border-slate-200 bg-slate-50 p-2 space-y-2">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-3.5 w-3.5 shrink-0" />
+            <input
+              placeholder="Describe the email you want..."
+              value={aiPrompt}
+              onChange={e => setAiPrompt(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") handleAiGenerate() }}
+              className="flex-1 bg-transparent text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none"
+            />
+          </div>
+          <div className="flex items-center justify-end gap-1">
+            {aiStreaming ? (
+              <span className="text-xs text-slate-500">Generating...</span>
+            ) : (
+              <Button size="sm" onClick={handleAiGenerate} disabled={!aiPrompt.trim()} className="h-7 text-xs"><Sparkles className="h-3 w-3 mr-1" />Generate</Button>
+            )}
+          </div>
+        </div>
+      )}
+
     </div>
   )
 
-  if (expanded) return <Dialog open={expanded} onOpenChange={v => { setExpanded(v); if (!v) onOpenChange(false); }}><DialogContent className="sm:max-w-[800px] h-[85vh] flex flex-col p-0 gap-0 rounded-xl"><DialogHeader className="sr-only"><DialogTitle>New Message</DialogTitle></DialogHeader>{panelContent}</DialogContent></Dialog>
-  if (inline) return <div className="border rounded-xl overflow-hidden">{panelContent}</div>
-  return <div className="fixed bottom-0 right-4 z-50 w-[960px] h-[580px] bg-background border rounded-xl shadow-2xl flex flex-col overflow-hidden">{panelContent}</div>
+  const toolbar = (
+    <div className="flex items-center justify-between rounded-full px-4 py-2">
+      <div className="flex items-center gap-1">
+        <ToolbarButton label="Bold" active={editor.isActive("bold")} onClick={() => editor.chain().focus().toggleBold().run()}><Bold className="h-4 w-4" /></ToolbarButton>
+        <ToolbarButton label="Italic" active={editor.isActive("italic")} onClick={() => editor.chain().focus().toggleItalic().run()}><Italic className="h-4 w-4" /></ToolbarButton>
+        <ToolbarButton label="Underline" active={editor.isActive("underline")} onClick={() => editor.chain().focus().toggleUnderline().run()}><UnderlineIcon className="h-4 w-4" /></ToolbarButton>
+        <div className="mx-1 h-5 w-px bg-slate-200" />
+        <ToolbarButton label="Bullet list" active={editor.isActive("bulletList")} onClick={() => editor.chain().focus().toggleBulletList().run()}><List className="h-4 w-4" /></ToolbarButton>
+        <ToolbarButton label="Numbered list" active={editor.isActive("orderedList")} onClick={() => editor.chain().focus().toggleOrderedList().run()}><ListOrdered className="h-4 w-4" /></ToolbarButton>
+        <div className="mx-1 h-5 w-px bg-slate-200" />
+        <ToolbarButton label="Link" active={editor.isActive("link")} onClick={() => { const url = window.prompt("Enter URL"); if (url) editor.chain().focus().setLink({ href: url }).run() }}><LinkIcon className="h-4 w-4" /></ToolbarButton>
+        <ToolbarButton label="Attach file" onClick={() => fileInputRef.current?.click()}><Paperclip className="h-4 w-4" /></ToolbarButton>
+        <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileSelect} />
+        <div className="mx-1 h-5 w-px bg-slate-200" />
+        <ToolbarButton label="AI Write" onClick={() => setShowAiPanel(p => !p)}><Sparkles className="h-4 w-4" /></ToolbarButton>
+      </div>
+      <button
+        type="button"
+        onClick={handleSend}
+        disabled={recipients.length === 0 || sending}
+        className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+      >
+        <Send className="h-4 w-4" />
+        {sending ? "Sending..." : "Send"}
+      </button>
+    </div>
+  )
+
+  if (inline) return <div className="border rounded-xl overflow-hidden">{formContent}</div>
+
+  if (showAiPanel) {
+    return (
+      <div className="fixed inset-0 z-[100] flex" style={{ backgroundColor: "#FAFAFA" }}>
+        <div className="flex flex-1 flex-col min-w-0">
+          <div className="flex items-center justify-end px-5 py-4">
+            <button type="button" onClick={() => onOpenChange(false)} className="rounded-md p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            <div className="mx-auto w-full max-w-2xl py-6">
+              {formContent}
+            </div>
+          </div>
+          <div className="px-5 py-3">
+            {toolbar}
+          </div>
+        </div>
+        <ComposeAiPanel
+          onClose={() => setShowAiPanel(false)}
+          currentContent={editor?.getHTML() || ""}
+          currentSubject={subject}
+          onUpdateContent={(html) => editor?.commands.setContent(html)}
+          onUpdateSubject={(s) => setSubject(s)}
+        />
+      </div>
+    )
+  }
+
+  return (
+    <Modal open={open} onClose={() => onOpenChange(false)} footer={toolbar}>
+      {formContent}
+    </Modal>
+  )
 }
 
-function fileToBase64(file: File): Promise<string> { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve((reader.result as string).split(",")[1]); reader.onerror = reject; reader.readAsDataURL(file); }) }
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve((reader.result as string).split(",")[1])
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
