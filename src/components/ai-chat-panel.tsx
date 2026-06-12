@@ -2,7 +2,8 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Sparkles, Loader2, Trash2, X } from "lucide-react";
+import { Sparkles, Loader2, Trash2, X, EllipsisVertical } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useAiPanel } from "@/contexts/ai-panel-context";
 import {
@@ -25,7 +26,7 @@ import {
   MessageResponse,
 } from "@/components/ai-elements/message";
 import { Reasoning, ReasoningContent, ReasoningTrigger } from "@/components/ai-elements/reasoning";
-import { ChainOfThought, ChainOfThoughtContent, ChainOfThoughtHeader, ChainOfThoughtStep } from "@/components/ai-elements/chain-of-thought";
+import { Task, TaskTrigger, TaskContent, TaskItem } from "@/components/ai-elements/task";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -39,10 +40,12 @@ export function AiChatPanel() {
   const router = useRouter();
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [currentReasoning, setCurrentReasoning] = useState("");
-  const [currentToolCall, setCurrentToolCall] = useState<{ name: string; args: string } | null>(null);
+  const [streamingReply, setStreamingReply] = useState("");
+  const [streamingReasoning, setStreamingReasoning] = useState("");
+  const [streamingToolCall, setStreamingToolCall] = useState<{ name: string; args: string } | null>(null);
+  const [reasoningEffort, setReasoningEffort] = useState("medium");
   const bottomRef = useRef<HTMLDivElement>(null);
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, currentReasoning, currentToolCall]);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, streamingReply, streamingReasoning, streamingToolCall]);
 
   const handleSend = useCallback(async (message?: PromptInputMessage) => {
     const msg = (message?.text || input).trim();
@@ -50,58 +53,93 @@ export function AiChatPanel() {
     setInput("");
     setMessages(p => [...p, { role: "user", content: msg }]);
     setLoading(true);
-    setCurrentReasoning("Thinking...");
-    setCurrentToolCall(null);
+    setStreamingReply("");
+    setStreamingReasoning("");
+    setStreamingToolCall(null);
 
     try {
       const convMessages = [...messages, { role: "user", content: msg }];
       const res = await fetch("/api/ai/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: convMessages }),
+        body: JSON.stringify({ messages: convMessages, reasoningEffort }),
       });
-      const data = await res.json();
 
-      // Trigger CSV download for export
-      if (data.csv) {
-        const blob = new Blob([data.csv], { type: "text/csv" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `export_${Date.now()}.csv`;
-        a.click();
-        URL.revokeObjectURL(url);
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("No body");
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const data = JSON.parse(line.slice(6));
+
+            switch (data.type) {
+              case "reasoning":
+                setStreamingReasoning(p => p + data.content);
+                break;
+              case "text":
+                setStreamingReply(p => p + data.content);
+                break;
+              case "tool_call":
+                setStreamingToolCall({ name: data.name, args: JSON.stringify(data.args) });
+                break;
+              case "result":
+                if (data.csv) {
+                  const blob = new Blob([data.csv], { type: "text/csv" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = `export_${Date.now()}.csv`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }
+                if (data.toolCall?.tool === "navigate") {
+                  setMessages(p => [...p, {
+                    role: "assistant",
+                    content: data.reply || "",
+                    reasoning: data.reasoning || "",
+                    toolCalls: [{ name: "navigate", args: JSON.stringify(data.toolCall.args), result: "Navigated" }],
+                  }]);
+                  setLoading(false);
+                  router.push(data.toolCall.args?.path || "/");
+                  return;
+                }
+                const tcs = (data.toolCalls || []).map((tc: any) => ({
+                  name: tc.name,
+                  args: typeof tc.args === "string" ? tc.args : JSON.stringify(tc.args),
+                  result: tc.result || "",
+                }));
+                setMessages(p => [...p, {
+                  role: "assistant",
+                  content: data.reply || "",
+                  reasoning: data.reasoning || "",
+                  toolCalls: tcs,
+                }]);
+                break;
+              case "error":
+                setMessages(p => [...p, { role: "assistant", content: `Error: ${data.message}` }]);
+                break;
+            }
+          } catch {}
+        }
       }
-
-      const toolCalls = data.toolCalls?.map((tc: any) => ({
-        name: tc.name,
-        args: typeof tc.args === "string" ? tc.args : JSON.stringify(tc.args),
-        result: tc.result || "",
-      })) || [];
-
-      if (data.toolCall?.tool === "navigate") {
-        setMessages(p => [...p, {
-          role: "assistant",
-          content: data.reply || "",
-          reasoning: data.reasoning || "",
-          toolCalls: [{ name: "navigate", args: JSON.stringify(data.toolCall.args), result: "Navigated" }],
-        }]);
-        setCurrentReasoning(""); setCurrentToolCall(null); setLoading(false);
-        router.push(data.toolCall.args?.path || "/");
-        return;
-      }
-
-      setMessages(p => [...p, {
-        role: "assistant",
-        content: data.reply || "",
-        reasoning: data.reasoning || "",
-        toolCalls,
-      }]);
     } catch {
       setMessages(p => [...p, { role: "assistant", content: "Connection error. Please try again." }]);
     }
-    setCurrentReasoning("");
-    setCurrentToolCall(null);
+    setStreamingReply("");
+    setStreamingReasoning("");
+    setStreamingToolCall(null);
     setLoading(false);
   }, [input, messages, router, close]);
 
@@ -143,68 +181,53 @@ export function AiChatPanel() {
                   description="Ask me to navigate or answer questions about the platform."
                 />
               ) : (
-                messages.map((m, i) => (
-                  <Message from={m.role} key={i}>
-                    <MessageContent>
-                      {m.reasoning && (
-                        <Reasoning className="w-full mb-3">
-                          <ReasoningTrigger />
-                          <ReasoningContent>{m.reasoning}</ReasoningContent>
-                        </Reasoning>
-                      )}
-                      {m.toolCalls && m.toolCalls.length > 0 && (
-                        <ChainOfThought className="w-full mb-3" defaultOpen={false}>
-                          <ChainOfThoughtHeader />
-                          <ChainOfThoughtContent>
-                            <div className="space-y-2 px-1 py-1">
-                              {m.toolCalls.map((tc, j) => (
-                                <ChainOfThoughtStep
-                                  key={j}
-                                  label={tc.name}
-                                  description={`Args: ${tc.args}`}
-                                  status={tc.result ? "complete" : "active"}
-                                />
-                              ))}
-                            </div>
-                          </ChainOfThoughtContent>
-                        </ChainOfThought>
-                      )}
-                      <MessageResponse>{m.content}</MessageResponse>
-                    </MessageContent>
-                  </Message>
-                ))
+                <>
+                  {messages.map((m, i) => (
+                    <Message from={m.role} key={i}>
+                      <MessageContent>
+                        {m.reasoning && (
+                          <Reasoning>
+                            <ReasoningTrigger />
+                            <ReasoningContent>{m.reasoning}</ReasoningContent>
+                          </Reasoning>
+                        )}
+                        <MessageResponse>{m.content}</MessageResponse>
+                      </MessageContent>
+                    </Message>
+                  ))}
+                  {loading && (
+                    <Message from="assistant">
+                      <MessageContent>
+                        {streamingReasoning && (
+                          <Reasoning isStreaming>
+                            <ReasoningTrigger />
+                            <ReasoningContent>{streamingReasoning}</ReasoningContent>
+                          </Reasoning>
+                        )}
+                        {!streamingReasoning && !streamingToolCall && (
+                          <Reasoning isStreaming>
+                            <ReasoningTrigger />
+                            <ReasoningContent>...</ReasoningContent>
+                          </Reasoning>
+                        )}
+                        {streamingToolCall && (
+                          <Task defaultOpen>
+                            <TaskTrigger title={`Using tool: ${streamingToolCall.name}`} />
+                            <TaskContent>
+                              <TaskItem>{streamingToolCall.args.slice(0, 200)}</TaskItem>
+                            </TaskContent>
+                          </Task>
+                        )}
+                        {streamingReply && <MessageResponse>{streamingReply}</MessageResponse>}
+                      </MessageContent>
+                    </Message>
+                  )}
+                </>
               )}
             </ConversationContent>
             <ConversationScrollButton />
           </Conversation>
 
-          {/* Live reasoning while streaming */}
-          {loading && currentReasoning && (
-            <div className="px-1 py-2">
-              <Reasoning className="w-full" isStreaming>
-                <ReasoningTrigger />
-                <ReasoningContent>{currentReasoning}</ReasoningContent>
-              </Reasoning>
-            </div>
-          )}
-
-          {/* Live tool call indicator */}
-          {loading && currentToolCall && (
-            <div className="px-1 py-2">
-              <ChainOfThought className="w-full" defaultOpen>
-                <ChainOfThoughtHeader />
-                <ChainOfThoughtContent>
-                  <div className="space-y-2 px-1 py-1">
-                    <ChainOfThoughtStep
-                      label={currentToolCall.name}
-                      description={`Args: ${currentToolCall.args}`}
-                      status="active"
-                    />
-                  </div>
-                </ChainOfThoughtContent>
-              </ChainOfThought>
-            </div>
-          )}
           <div ref={bottomRef} />
         </div>
 
@@ -216,7 +239,20 @@ export function AiChatPanel() {
               onChange={(e) => setInput(e.currentTarget.value)}
             />
             <PromptInputFooter>
+              <div />
               <PromptInputTools>
+                <Select value={reasoningEffort} onValueChange={setReasoningEffort}>
+                  <SelectTrigger className="size-8 p-0 flex items-center justify-center">
+                    <EllipsisVertical className="size-4" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    <SelectItem value="minimal">Minimal</SelectItem>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                  </SelectContent>
+                </Select>
                 <PromptInputSubmit status={loading ? "streaming" : "ready"} disabled={!input.trim()} />
               </PromptInputTools>
             </PromptInputFooter>

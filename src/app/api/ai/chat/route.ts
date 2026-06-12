@@ -1,12 +1,12 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getDb } from "@/db";
 import { like, or, and, eq, sql } from "drizzle-orm";
 import {
   websites, campaigns, leads, emailLists, sendingHistory,
   bounceResponses, removalList, auditLogs, roles, users,
 } from "@/db/schema";
-
-const OPENROUTER_API = "https://openrouter.ai/api/v1/chat/completions";
+import { ChatOpenRouter } from "@langchain/openrouter";
+import { HumanMessage, SystemMessage, ToolMessage } from "@langchain/core/messages";
 
 const TABLE_MAP: Record<string, any> = {
   websites, campaigns, leads, "email-lists": emailLists,
@@ -35,83 +35,39 @@ const PAGES = [
   "Audit Trail (/audit-trail)", "Roles (/roles)", "Users (/users)", "Profile (/profile)",
 ];
 
-const TOOLS = [
+const TOOL_DEFS = [
   {
-    type: "function",
-    function: {
-      name: "navigate",
-      description: `Navigate to a page. Pages: ${PAGES.join(", ")}.`,
-      parameters: {
-        type: "object",
-        properties: {
-          page: { type: "string", description: "Page display name" },
-          path: { type: "string", description: "URL path" },
-        },
-        required: ["page", "path"],
-      },
-    },
+    name: "navigate",
+    description: `Navigate to a page. Pages: ${PAGES.join(", ")}.`,
+    schema: { type: "object", properties: { page: { type: "string" }, path: { type: "string" } }, required: ["page", "path"] },
   },
   {
-    type: "function",
-    function: {
-      name: "search",
-      description: "Search across a data table. Tables: websites, campaigns, leads, email-lists, sending-history, bounce-responses, removal-list, audit-logs, roles, users.",
-      parameters: {
-        type: "object",
-        properties: {
-          table: { type: "string" },
-          q: { type: "string" },
-          filters: { type: "array", items: { type: "object", properties: { column: { type: "string" }, value: { type: "string" } } } },
-        },
-        required: ["table"],
-      },
-    },
+    name: "search",
+    description: "Search across a data table. Tables: websites, campaigns, leads, email-lists, sending-history, bounce-responses, removal-list, audit-logs, roles, users.",
+    schema: { type: "object", properties: { table: { type: "string" }, q: { type: "string" }, filters: { type: "array", items: { type: "object", properties: { column: { type: "string" }, value: { type: "string" } } } } }, required: ["table"] },
   },
   {
-    type: "function",
-    function: {
-      name: "get",
-      description: "Get a single record by ID.",
-      parameters: {
-        type: "object",
-        properties: { table: { type: "string" }, id: { type: "string" } },
-        required: ["table", "id"],
-      },
-    },
+    name: "get",
+    description: "Get a single record by ID.",
+    schema: { type: "object", properties: { table: { type: "string" }, id: { type: "string" } }, required: ["table", "id"] },
   },
   {
-    type: "function",
-    function: {
-      name: "counts",
-      description: "Get record counts across all tables.",
-      parameters: { type: "object", properties: {} },
-    },
+    name: "counts",
+    description: "Get record counts across all tables.",
+    schema: { type: "object", properties: {} },
   },
   {
-    type: "function",
-    function: {
-      name: "export",
-      description: "Export data from any table as CSV. Tables: websites, campaigns, leads, email-lists, sending-history, bounce-responses, removal-list, audit-logs, roles, users.",
-      parameters: {
-        type: "object",
-        properties: {
-          table: { type: "string" },
-          q: { type: "string" },
-          filters: { type: "array", items: { type: "object", properties: { column: { type: "string" }, value: { type: "string" } } } },
-        },
-        required: ["table"],
-      },
-    },
+    name: "export",
+    description: "Export data from any table as CSV. Tables: websites, campaigns, leads, email-lists, sending-history, bounce-responses, removal-list, audit-logs, roles, users.",
+    schema: { type: "object", properties: { table: { type: "string" }, q: { type: "string" }, filters: { type: "array", items: { type: "object", properties: { column: { type: "string" }, value: { type: "string" } } } } }, required: ["table"] },
   },
 ];
 
-async function executeTool(toolCall: { name: string; arguments: string }): Promise<string> {
-  const args = JSON.parse(toolCall.arguments);
-
-  switch (toolCall.name) {
+async function executeTool(name: string, argsStr: string): Promise<string> {
+  const args = JSON.parse(argsStr);
+  switch (name) {
     case "navigate":
       return `Navigating to ${args.page} at ${args.path}`;
-
     case "search": {
       const db = await getDb();
       const tbl = TABLE_MAP[args.table];
@@ -124,7 +80,6 @@ async function executeTool(toolCall: { name: string; arguments: string }): Promi
       const cnt = await db.select({ count: sql<number>`count(*)` }).from(tbl).where(where);
       return JSON.stringify({ data: rows, total: cnt[0]?.count ?? 0 });
     }
-
     case "get": {
       const db = await getDb();
       const tbl = TABLE_MAP[args.table];
@@ -132,7 +87,6 @@ async function executeTool(toolCall: { name: string; arguments: string }): Promi
       const row = await db.select().from(tbl).where(eq(tbl.id, args.id)).limit(1);
       return JSON.stringify(row[0] || null);
     }
-
     case "counts": {
       const db = await getDb();
       const allTables = ["websites", "campaigns", "leads", "email-lists", "sending-history", "bounce-responses", "removal-list", "users"];
@@ -146,7 +100,6 @@ async function executeTool(toolCall: { name: string; arguments: string }): Promi
       }
       return JSON.stringify(results);
     }
-
     case "export": {
       const db = await getDb();
       const tbl = TABLE_MAP[args.table];
@@ -160,123 +113,138 @@ async function executeTool(toolCall: { name: string; arguments: string }): Promi
       const csv = [headers.join(","), ...rows.map((r: any) => headers.map(h => `"${(r[h] ?? "").toString().replace(/"/g, '""')}"`).join(","))].join("\n");
       return JSON.stringify({ data: rows, csv, total: rows.length });
     }
-
     default:
-      return `Unknown tool: ${toolCall.name}`;
+      return `Unknown tool: ${name}`;
   }
 }
 
+const EFFORTS = ["none", "minimal", "low", "medium", "high"] as const;
+
+function createModel(effort: string) {
+  return new ChatOpenRouter({
+    model: "openai/gpt-5-nano",
+    apiKey: process.env.OPENROUTER_API_KEY!,
+    modelKwargs: { reasoning: { effort: EFFORTS.includes(effort as any) ? effort : "medium" } },
+  });
+}
+
+function sse(encoder: TextEncoder, controller: ReadableStreamDefaultController, data: any) {
+  controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+}
+
+async function streamModel(
+  model: ChatOpenRouter,
+  messages: any[],
+  encoder: TextEncoder,
+  controller: ReadableStreamDefaultController,
+): Promise<{ content: string; reasoning: string; toolCalls?: any[]; message?: any }> {
+  const stream = await model.stream(messages);
+  let fullContent = "";
+  let fullReasoning = "";
+  let accumulated: any = null;
+
+  for await (const chunk of stream) {
+    accumulated = accumulated ? accumulated.concat(chunk) : chunk;
+    const rc = (chunk.additional_kwargs as any)?.reasoning_content;
+    if (rc && typeof rc === "string") {
+      fullReasoning += rc;
+      sse(encoder, controller, { type: "reasoning", content: rc });
+    }
+    if (chunk.content) {
+      const text = typeof chunk.content === "string" ? chunk.content : "";
+      if (text) {
+        fullContent += text;
+        sse(encoder, controller, { type: "text", content: text });
+      }
+    }
+  }
+
+  const toolCalls = (accumulated as any)?.tool_calls;
+  if (toolCalls?.length) {
+    return { content: fullContent, reasoning: fullReasoning, toolCalls, message: accumulated };
+  }
+  return { content: fullContent, reasoning: fullReasoning, message: accumulated };
+}
+
 export async function POST(req: NextRequest) {
-  const { messages } = await req.json();
-  if (!messages || messages.length === 0) {
-    return NextResponse.json({ reply: "Messages are required" }, { status: 400 });
+  const { messages, reasoningEffort } = await req.json();
+  if (!messages?.length) {
+    return new Response(JSON.stringify({ reply: "Messages are required" }), { status: 400 });
   }
 
   const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) return NextResponse.json({ reply: "API key not configured" }, { status: 500 });
+  if (!apiKey) return new Response(JSON.stringify({ reply: "API key not configured" }), { status: 500 });
 
-  const systemMsg = {
-    role: "system",
-    content: `You are an AI assistant for the IntelliLabs Email Operations Platform.
-
+  const systemPrompt = `You are an AI assistant for the IntelliLabs Email Operations Platform.
 Available pages: ${PAGES.join(", ")}.
-
 You have tools: navigate (go to a page), search (query data), get (get record), counts (get totals), export (export CSV).
-
 Rules:
 - If the user wants to go to a page, use the navigate tool.
 - If the user asks to find/list/search data, use search, get, or counts.
 - If the user wants to export, use the export tool.
 - Remember conversation context.
-- Be concise and helpful.`,
-  };
+- Be concise and helpful.`;
 
-  try {
-    let modelMessages: any[] = [systemMsg, ...messages.map((m: any) => ({ role: m.role, content: m.content }))];
-
-    const res = await fetch(OPENROUTER_API, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "openai/gpt-5-nano",
-        messages: modelMessages,
-        tools: TOOLS,
-        reasoning: { effort: "minimal" },
-      }),
-    });
-
-    const data = await res.json();
-    const choice = data.choices?.[0];
-    const msg = choice?.message;
-
-    if (!msg) return NextResponse.json({ reply: "No response from model" });
-
-    // Handle tool calls
-    if (msg.tool_calls && msg.tool_calls.length > 0) {
-      const toolCall = msg.tool_calls[0];
-
-      // Execute the tool
-      const toolResult = await executeTool({
-        name: toolCall.function.name,
-        arguments: toolCall.function.arguments,
-      });
-
-      // Send result back to model for final response
-      modelMessages = [
-        ...modelMessages,
-        msg,
-        { role: "tool", tool_call_id: toolCall.id, content: toolResult },
+  const stream = new ReadableStream({
+    async start(controller) {
+      const encoder = new TextEncoder();
+      const model = createModel(reasoningEffort ?? "medium");
+      const langchainMessages = [
+        new SystemMessage(systemPrompt),
+        ...messages.map((m: any) => new HumanMessage(m.content)),
       ];
 
-      const finalRes = await fetch(OPENROUTER_API, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "openai/gpt-5-nano",
-          messages: modelMessages,
-        reasoning: { effort: "minimal" },
-        }),
-      });
+      try {
+        const modelWithTools = model.bindTools(
+          TOOL_DEFS.map(td => ({
+            type: "function" as const,
+            function: { name: td.name, description: td.description, parameters: td.schema },
+          })),
+        );
 
-      const finalData = await finalRes.json();
-      const finalMsg = finalData.choices?.[0]?.message;
-      const finalReply = finalMsg?.content || "";
-      const reasoning = msg.reasoning || finalMsg?.reasoning || "";
+        const first = await streamModel(modelWithTools, langchainMessages, encoder, controller);
 
-      const toolCalls = [{
-        name: toolCall.function.name,
-        args: toolCall.function.arguments,
-        result: toolResult.slice(0, 500),
-      }];
+        if (first.toolCalls?.length) {
+          const tc = first.toolCalls[0];
 
-      if (toolCall.function.name === "navigate") {
-        const args = JSON.parse(toolCall.function.arguments);
-        return NextResponse.json({
-          reply: finalReply,
-          reasoning,
-          toolCall: { tool: "navigate", args },
-          toolCalls,
-        });
+          sse(encoder, controller, { type: "tool_call", name: tc.name, args: tc.args });
+
+          const toolResult = await executeTool(tc.name, JSON.stringify(tc.args));
+
+          const resultMessages = [
+            ...langchainMessages,
+            first.message,
+            new ToolMessage({ tool_call_id: tc.id!, content: toolResult }),
+          ];
+
+          const second = await streamModel(model, resultMessages, encoder, controller);
+          const reasoning = first.reasoning || second.reasoning;
+          const toolCallsResult = [{ name: tc.name, args: JSON.stringify(tc.args), result: toolResult.slice(0, 500) }];
+
+          if (tc.name === "navigate") {
+            sse(encoder, controller, { type: "result", reply: second.content, reasoning, toolCall: { tool: "navigate", args: tc.args }, toolCalls: toolCallsResult });
+          } else if (tc.name === "export") {
+            let csv = "";
+            try { const r = JSON.parse(toolResult); csv = r.csv || ""; } catch {}
+            sse(encoder, controller, { type: "result", reply: second.content, reasoning, toolCalls: toolCallsResult, csv });
+          } else {
+            sse(encoder, controller, { type: "result", reply: second.content, reasoning, toolCalls: toolCallsResult });
+          }
+        } else {
+          sse(encoder, controller, { type: "result", reply: first.content, reasoning: first.reasoning, toolCalls: [] });
+        }
+      } catch (e: any) {
+        sse(encoder, controller, { type: "error", message: e.message });
       }
+      controller.close();
+    },
+  });
 
-      // If export, include CSV data for download
-      if (toolCall.function.name === "export") {
-        let csv = "";
-        try { const r = JSON.parse(toolResult); csv = r.csv || ""; } catch {}
-        return NextResponse.json({ reply: finalReply, reasoning, toolCalls, csv });
-      }
-
-      return NextResponse.json({ reply: finalReply, reasoning, toolCalls });
-    }
-
-    return NextResponse.json({ reply: msg.content || "", reasoning: msg.reasoning || "" });
-  } catch (e: any) {
-    return NextResponse.json({ reply: `Error: ${e.message}` }, { status: 500 });
-  }
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    },
+  });
 }
