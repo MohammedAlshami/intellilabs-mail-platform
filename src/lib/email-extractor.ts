@@ -1,5 +1,6 @@
 import { execSync } from "child_process";
 import path from "path";
+import { chromium } from "playwright-core";
 
 const BAD_DOMAINS = new Set([
   "example.com", "example.org", "example.net", "test.com", "domain.com",
@@ -21,60 +22,136 @@ const COMMON_GOOD_PATTERNS = [
   "@icloud.com", "@protonmail.com", "@aol.com",
 ];
 
+const EMAIL_RE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+const SKIP_EXTS = [".pdf",".jpg",".jpeg",".png",".gif",".svg",".webp",".mp4",".mp3",".zip",".tar",".gz",".xml",".json",".css",".js",".ico"];
+const SKIP_PATHS = ["/cdn-cgi/", "/wp-content/", "/wp-includes/", "/css/", "/js/", "/img/", "/images/", "/assets/"];
+
 function isBadEmail(email: string): boolean {
   const lower = email.toLowerCase();
   const [local, domain] = lower.split("@");
   if (!domain) return true;
-
-  // Skip example/test domains
   if (BAD_DOMAINS.has(domain)) return true;
-
-  // Skip single char local parts (a@, b@, etc.)
   if (local.length <= 1) return true;
-
-  // Skip emails with no dots in domain (localhost, etc.)
   if (!domain.includes(".")) return true;
-
-  // Skip common bad prefixes
   for (const prefix of BAD_PREFIXES) {
     if (local === prefix || local.startsWith(prefix + ".") || local.startsWith(prefix + "_")) {
-      // But allow if it's a common email provider (like john@gmail.com could be real)
       if (COMMON_GOOD_PATTERNS.some(p => lower.endsWith(p))) continue;
       return true;
     }
   }
-
-  // Skip if local part looks like a placeholder (all numbers, or "user" + numbers)
   if (/^user\d+$/.test(local) || /^test\d*$/.test(local)) return true;
-
-  // Skip emails with IP address as domain
   if (/^\d+\.\d+\.\d+\.\d+$/.test(domain)) return true;
-
   return false;
 }
 
-export async function extractEmails(domain: string): Promise<string[]> {
-  domain = domain.replace(/http[s]?:\/\//, "").split("/")[0];
-  const url = `https://${domain}`;
-
+function normalizeUrl(href: string, baseDomain: string): string | null {
   try {
+    const u = new URL(href, `https://${baseDomain}`);
+    if (u.hostname !== baseDomain && !u.hostname.endsWith("." + baseDomain)) return null;
+    if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+    if (SKIP_EXTS.some(e => u.pathname.toLowerCase().endsWith(e))) return null;
+    if (SKIP_PATHS.some(p => u.pathname.includes(p))) return null;
+    if (u.hash) u.hash = "";
+    return u.href.replace(/\/$/, "");
+  } catch { return null; }
+}
+
+async function crawlWithPlaywright(domain: string, maxDepth: number = 3, concurrency: number = 8): Promise<string[]> {
+  const baseUrl = `https://${domain}`;
+  const allEmails = new Set<string>();
+  const visited = new Set<string>();
+  let queue: { url: string; depth: number }[] = [{ url: baseUrl, depth: 0 }];
+  let activeCount = 0;
+
+  const browser = await chromium.launch({ headless: true });
+
+  async function processPage(item: { url: string; depth: number }): Promise<void> {
+    if (visited.has(item.url)) return;
+    visited.add(item.url);
+
+    try {
+      const page = await browser.newPage();
+      await page.goto(item.url, { waitUntil: "networkidle", timeout: 15000 }).catch(() => {});
+      await page.waitForTimeout(1000);
+
+      // Extract emails from page text
+      const text = await page.evaluate(() => document.body.innerText).catch(() => "");
+      if (text) {
+        const found = text.match(EMAIL_RE) || [];
+        for (const e of found) allEmails.add(e.toLowerCase());
+      }
+
+      // If not at max depth, extract links for further crawling
+      if (item.depth < maxDepth) {
+        const links = await page.evaluate(() =>
+          Array.from(document.querySelectorAll("a[href]")).map(a => (a as HTMLAnchorElement).href)
+        ).catch(() => [] as string[]);
+
+        const newUrls = new Set<string>();
+        for (const link of links) {
+          const normalized = normalizeUrl(link, domain);
+          if (normalized && !visited.has(normalized) && normalized.startsWith(baseUrl)) {
+            newUrls.add(normalized);
+          }
+        }
+        // Only add links if they're within domain and not too deep
+        for (const nu of newUrls) {
+          const pathDepth = (nu.replace(baseUrl, "").match(/\//g) || []).length;
+          if (pathDepth <= maxDepth) {
+            queue.push({ url: nu, depth: item.depth + 1 });
+          }
+        }
+      }
+
+      await page.close();
+    } catch {}
+  }
+
+  // Process queue with concurrency
+  while (queue.length > 0 || activeCount > 0) {
+    while (queue.length > 0 && activeCount < concurrency) {
+      const item = queue.shift()!;
+      activeCount++;
+      processPage(item).finally(() => { activeCount--; });
+    }
+    if (activeCount >= concurrency || queue.length === 0) {
+      await new Promise(r => setTimeout(r, 200));
+    }
+  }
+
+  await browser.close();
+  return [...allEmails].sort();
+}
+
+async function crawlWithScrapy(domain: string): Promise<string[]> {
+  try {
+    const url = `https://${domain}`;
     const script = path.join(process.cwd(), "scripts", "crawl_emails.py");
     const output = execSync(`python3 "${script}" "${url}"`, {
       timeout: 60000,
       maxBuffer: 10 * 1024 * 1024,
     }).toString();
-
     const result = JSON.parse(output);
-    if (result.error) {
-      console.error("Email crawler error:", result.error);
-      return [];
-    }
-    const allEmails: string[] = result.emails || [];
-    const filtered = allEmails.filter(e => !isBadEmail(e));
-    const unique = [...new Set(filtered)];
-    return unique;
-  } catch (e: any) {
-    console.error("Email crawler failed:", e.message);
+    if (result.error) return [];
+    return result.emails || [];
+  } catch {
     return [];
   }
+}
+
+export async function extractEmails(domain: string): Promise<string[]> {
+  domain = domain.replace(/http[s]?:\/\//, "").split("/")[0];
+
+  // Run both crawlers in parallel for best coverage
+  const [playwrightEmails, scrapyEmails] = await Promise.all([
+    crawlWithPlaywright(domain, 3, 8).catch(() => [] as string[]),
+    crawlWithScrapy(domain).catch(() => [] as string[]),
+  ]);
+
+  // Merge and filter
+  const all = [...new Set([...playwrightEmails, ...scrapyEmails])];
+  const filtered = all.filter(e => !isBadEmail(e));
+  const unique = [...new Set(filtered)];
+
+  return unique;
 }
