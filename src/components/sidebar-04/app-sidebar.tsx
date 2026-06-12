@@ -28,7 +28,7 @@ export function AppSidebar({ collapsed, setCollapsed, ...props }: { collapsed: b
   const filteredMails = React.useMemo(() => { const q = query.trim().toLowerCase(); if (!q) return mails; return mails.filter(m => [m.name, m.email, m.subject, m.teaser].join("\n").toLowerCase().includes(q)); }, [mails, query]);
   return (
     <div className="flex">
-      <Sidebar style={{ "--sidebar-width": collapsed ? "4.5rem" : "14rem" } as React.CSSProperties} collapsible="none" className={`border-r p-2 px-1 transition-[width] duration-300 ease-in-out ${collapsed ? 'w-[4.5rem]' : ''}`}>
+      <Sidebar collapsible="none" className={`border-r p-2 px-1 transition-[width] duration-300 ease-in-out ${collapsed ? 'w-[4.5rem]' : ''}`}>
         <SidebarHeader><SidebarMenu><SidebarMenuItem><div className="flex items-center justify-between px-1.5 py-1">{!collapsed && <span className="text-xs font-semibold text-foreground uppercase tracking-wider">Menu</span>}<button onClick={() => setCollapsed(!collapsed)} className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors" title={collapsed ? "Expand sidebar" : "Collapse sidebar"}>{collapsed ? <PanelLeft className="size-4" /> : <PanelLeftClose className="size-4" />}</button></div></SidebarMenuItem></SidebarMenu></SidebarHeader>
         <SidebarContent>
           {navGroups.map(g => (
@@ -39,7 +39,7 @@ export function AppSidebar({ collapsed, setCollapsed, ...props }: { collapsed: b
         <SidebarFooter><SidebarMenu><SidebarMenuItem><SidebarMenuButton onClick={toggleAi} className={`text-gray-500 hover:text-gray-700 ${collapsed ? 'justify-center' : ''}`}><Sparkles className="size-4" />{!collapsed && <span>AI Assistant</span>}</SidebarMenuButton></SidebarMenuItem></SidebarMenu>{!collapsed && <NavUser user={{ name: user.name, email: user.email, avatar: user.avatar }} />}</SidebarFooter>
       </Sidebar>
       {pathname === "/mail" && (
-        <Sidebar collapsible="none" className="hidden flex-1 border-r md:flex min-w-96">
+        <Sidebar collapsible="none" className="hidden flex-1 border-r md:flex min-w-[28rem] w-[28rem]">
           <Compose open={composeOpen} onOpenChange={setComposeOpen} />
           <SidebarHeader className="gap-2 border-b p-4">
             <div className="flex w-full items-center justify-between"><div className="text-foreground text-base font-medium">{FOLDER_LABELS[folder]}</div><button onClick={() => setComposeOpen(true)} className="inline-flex items-center gap-1.5 rounded-md bg-primary text-primary-foreground px-3 py-1.5 text-xs font-medium hover:bg-primary/90 transition-colors"><SquarePen className="h-3.5 w-3.5" />New</button></div>

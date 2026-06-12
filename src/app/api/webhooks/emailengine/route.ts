@@ -43,6 +43,7 @@ export async function POST(req: NextRequest) {
     if (event === "message.new" || event === "messageNew") {
       const messageId = msgData.id || ""; if (!messageId) return NextResponse.json({ ok: true });
       const content = await fetchEmailContent(account, messageId); if (!content) return NextResponse.json({ ok: true });
+      console.log("MSG NEW:", account, msgData.path, content.subject);
       const db = await getDb(); const emailId = uuidv4(); const now = new Date().toISOString();
       const existing = await db.select().from(emails).where(eq(emails.emailengineId, messageId)).limit(1);
       if (existing.length > 0) return NextResponse.json({ ok: true });
