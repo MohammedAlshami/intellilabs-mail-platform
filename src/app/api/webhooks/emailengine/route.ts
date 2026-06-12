@@ -64,18 +64,8 @@ export async function POST(req: NextRequest) {
       const db = await getDb();
       const qid = msgData.queueId || "";
       const tos = msgData.envelope?.to || [];
-      const fromAddr = msgData.envelope?.from || account;
       const now = new Date().toISOString();
       if (qid && tos.length > 0) {
-        // Store sent email in DB for Sent folder
-        const emailId = uuidv4();
-        await db.insert(emails).values({
-          id: emailId, messageId: qid, account: account || "ahmad",
-          fromName: fromAddr.split("@")[0] || "", fromEmail: fromAddr,
-          toEmail: tos.join(", "), subject: msgData.subject || "Sent",
-          folder: "SENT", seen: true, direction: "outbound",
-          receivedAt: now, createdAt: now, updatedAt: now,
-        });
         await db.insert(sendingHistory).values({ id: uuidv4(), campaign: "Direct Send", recipients: tos.length, sent: 1, date: now, status: "sent", createdAt: now });
         await db.insert(auditLogs).values({ id: uuidv4(), action: "email_sent", entityType: "email", entityId: qid, details: `Email sent to ${tos.join(", ")}`, createdAt: now });
       }
