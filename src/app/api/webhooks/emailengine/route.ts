@@ -38,6 +38,7 @@ async function ensureThread(db: any, subj: string, inr: string, fe: string, te: 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json(); const event = body.event || body.type || body.data?.event || ""; const msgData = body.data || body.message || body; const account = body.account || msgData.account || "ahmad";
+    console.log("WEBHOOK EVENT:", event, "account:", account);
     if (!event) return NextResponse.json({ ok: true });
     if (event === "message.new" || event === "messageNew") {
       const messageId = msgData.id || ""; if (!messageId) return NextResponse.json({ ok: true });
