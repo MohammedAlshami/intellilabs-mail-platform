@@ -65,11 +65,33 @@ async function fetchPageText(url: string): Promise<string> {
   return "";
 }
 
+async function isUrlHealthy(url: string): Promise<boolean> {
+  try {
+    const res = await fetch(url, { method: "HEAD", signal: AbortSignal.timeout(5000) });
+    return res.ok || res.status === 403 || res.status === 401;
+  } catch {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+      return res.ok || res.status === 403 || res.status === 401;
+    } catch {
+      return false;
+    }
+  }
+}
+
 export async function POST(req: NextRequest) {
   const { url, websiteId } = await req.json();
   if (!url) return NextResponse.json({ error: "URL required" }, { status: 400 });
 
   const domain = url.replace(/https?:\/\//, "").split("/")[0].split("?")[0];
+
+  // Check URL health first
+  updateProgress(websiteId, 1, "running", "Checking URL health...");
+  const healthy = await isUrlHealthy(url);
+  if (!healthy) {
+    await updateProgress(websiteId, 1, "error", "Website is unreachable or blocking requests");
+    return NextResponse.json({ status: "error", error: "Website unreachable", name: "", description: "", summary: "", services: [], emails: [] });
+  }
 
   updateProgress(websiteId, 1, "running", "Starting email crawler...");
 

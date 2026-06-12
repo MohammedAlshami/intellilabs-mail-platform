@@ -30,6 +30,12 @@ function isBadEmail(email: string): boolean {
   const lower = email.toLowerCase();
   const [local, domain] = lower.split("@");
   if (!domain) return true;
+  // Skip if domain contains path separators (it's a file path, not email)
+  if (domain.includes("/") || domain.includes("\\")) return true;
+  // Skip if it looks like a file name with image extension
+  if (/\.(png|jpg|jpeg|gif|svg|webp|ico|css|js|json|xml|pdf|zip|tar|gz)$/i.test(domain)) return true;
+  // Skip IP-based domains
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(domain)) return true;
   if (BAD_DOMAINS.has(domain)) return true;
   if (local.length <= 1) return true;
   if (!domain.includes(".")) return true;
@@ -40,7 +46,6 @@ function isBadEmail(email: string): boolean {
     }
   }
   if (/^user\d+$/.test(local) || /^test\d*$/.test(local)) return true;
-  if (/^\d+\.\d+\.\d+\.\d+$/.test(domain)) return true;
   return false;
 }
 
