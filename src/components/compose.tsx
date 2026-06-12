@@ -69,7 +69,7 @@ export function Compose({ open, onOpenChange, onSend, initialTo, initialSubject,
     content: initialText || "",
     editorProps: {
       attributes: {
-        class: "prose prose-sm max-w-none focus:outline-none min-h-[260px] text-slate-800",
+        class: "prose prose-sm max-w-none focus:outline-none min-h-[260px] text-slate-800 [&_p:empty]:block [&_p:empty]:h-[1em]",
       },
     },
   })

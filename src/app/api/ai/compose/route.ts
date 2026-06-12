@@ -76,7 +76,19 @@ export async function POST(req: NextRequest) {
       try {
         const userInfoNote = user ? `The current user is ${user.name} (${user.email}).` : "";
         const langchainMessages = messages.map((m: any) => {
-          if (m.role === "system") return { role: "system" as const, content: m.content + `\n\n${userInfoNote}\n\nRULES:\n1. Before writing any email, ask at least one clarifying question to ensure you have all needed details. Do NOT rush to use tools.\n2. After the user responds, use set_email, set_recipients, and get_user_info tools.\n3. Do NOT include any sign-off, closing, or signature in the body.\n4. Between paragraphs, insert <p><br></p> for blank line spacing.` };
+          if (m.role === "system") return { role: "system" as const, content: m.content + `\n\n${userInfoNote}\n\nFORMAT EXAMPLE:
+<p>Dear [Name],</p>
+<p><br></p>
+<p>I hope you're doing well...</p>
+<p><br></p>
+<p>Thank you for your understanding.</p>
+
+RULES:
+1. Write proper, detailed, formal emails with a warm tone.
+2. Use the format above: each paragraph followed by <p><br></p> except the last.
+3. NEVER include any sign-off like "Best regards" or "Sincerely" or "[Your Name]" in the body.
+4. You can call get_user_info to get your name and email.
+5. After writing, ask if they'd like to modify anything.` };
           return { role: "user" as const, content: m.content };
         });
 
