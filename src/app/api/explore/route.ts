@@ -66,7 +66,7 @@ function eventStream(req: NextRequest, controller: ReadableStreamDefaultControll
 
           try {
             const result = await model.invoke([
-              { role: "system", content: "Given the user's request, generate a short DuckDuckGo search query (max 6 words). Return ONLY the search query text." },
+              { role: "system", content: "Given the user's request, generate a short DuckDuckGo search query (max 6 words) to find COMPANY WEBSITES and LANDING PAGES. Focus on finding official business websites, not blog posts or articles. Use terms like 'official website' or target domain patterns. Return ONLY the search query text." },
               { role: "user", content: query },
             ]);
             const generated = typeof result.content === "string" ? result.content.trim() : query;
@@ -100,7 +100,7 @@ function eventStream(req: NextRequest, controller: ReadableStreamDefaultControll
 
         try {
           const followUp = await model.invoke([
-            { role: "system", content: `We searched for "${currentQuery}" and got ${allRawResults.length} results. Generate a DIFFERENT search query (max 6 words) to find more variety. Avoid repeating words from previous queries: ${searchQueries.join(", ")}. Return ONLY the query text.` },
+            { role: "system", content: `We searched for "${currentQuery}" and got ${allRawResults.length} results. Generate a DIFFERENT search query (max 6 words) to find more COMPANY WEBSITES and LANDING PAGES. Focus on finding business homepages. Avoid repeating words from previous queries: ${searchQueries.join(", ")}. Return ONLY the query text.` },
             { role: "user", content: query },
           ]);
           const nextQuery = typeof followUp.content === "string" ? followUp.content.trim() : "";
@@ -130,7 +130,7 @@ function eventStream(req: NextRequest, controller: ReadableStreamDefaultControll
       let filteredResults: typeof allRawResults = [];
 
       try {
-        const filterPrompt = `You are a strict result filter. Review these search results and ONLY keep ones matching the user's request.
+        const filterPrompt = `You are a strict result filter. Review these search results and ONLY keep ones that are COMPANY WEBSITES or LANDING PAGES matching the user's request. EXCLUDE blog posts, articles, news stories, social media pages, Wikipedia entries, review sites, and directory listings.
 
 User request: "${query}"
 
@@ -140,7 +140,10 @@ ${existingSet.size > 0 ? Array.from(existingSet).join("\n") : "(none)"}
 Search results:
 ${JSON.stringify(allRawResults, null, 2)}
 
-Return ONLY a JSON array of { title, url, abstract } for results that match the request AND are not in the existing URLs list. Empty array if none match.`;
+PREFER URLs that look like company homepages (e.g. example.com, example.com/about, example.com/contact) over subpages.
+EXCLUDE URLs that look like articles (/blog/, /news/, /article/, etc.) or social media (facebook.com, twitter.com, linkedin.com, etc.).
+
+Return ONLY a JSON array of { title, url, abstract } for company website results that match the request AND are not in the existing URLs list. Empty array if none match.`;
 
         const filterResult = await model.invoke([
           { role: "system", content: "You are a strict result filter. Return ONLY valid JSON." },
