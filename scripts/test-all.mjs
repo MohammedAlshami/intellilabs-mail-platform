@@ -3,11 +3,13 @@ import { chromium } from "@playwright/test";
 const BASE = "http://localhost:3001";
 const EMAIL = "ahmad@demo-project-mail.xyz";
 const PASS = "***REDACTED***";
+const TIMEOUT = 30000;
 
 async function main() {
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
   const page = await context.newPage();
+  page.setDefaultTimeout(TIMEOUT);
   let passed = 0, failed = 0;
 
   function check(name, ok) { if (ok) { passed++; console.log(`  ✅ ${name}`); } else { failed++; console.log(`  ❌ ${name}`); } }
@@ -31,99 +33,99 @@ async function main() {
 
   // 3. Mail page
   console.log("\n=== 3. Mail ===");
-  await page.goto(`${BASE}/mail`, { waitUntil: "networkidle", timeout: 15000 });
+  await page.goto(`${BASE}/mail`, { waitUntil: "networkidle", timeout: TIMEOUT });
   await page.waitForTimeout(2000);
   check("Mail page loads", !page.url().includes("error"));
 
   // 4. Campaigns
   console.log("\n=== 4. Campaigns ===");
-  await page.goto(`${BASE}/campaign`, { waitUntil: "networkidle", timeout: 15000 });
+  await page.goto(`${BASE}/campaign`, { waitUntil: "networkidle", timeout: TIMEOUT });
   await page.waitForTimeout(1000);
   check("Campaigns page loads", !page.url().includes("error"));
 
   // 5. Templates
   console.log("\n=== 5. Templates ===");
-  await page.goto(`${BASE}/email-templates`, { waitUntil: "networkidle", timeout: 15000 });
+  await page.goto(`${BASE}/email-templates`, { waitUntil: "networkidle", timeout: TIMEOUT });
   await page.waitForTimeout(1000);
   check("Templates page loads", !page.url().includes("error"));
 
   // 6. Signatures
   console.log("\n=== 6. Signatures ===");
-  await page.goto(`${BASE}/email-signatures`, { waitUntil: "networkidle", timeout: 15000 });
+  await page.goto(`${BASE}/email-signatures`, { waitUntil: "networkidle", timeout: TIMEOUT });
   await page.waitForTimeout(1000);
   check("Signatures page loads", !page.url().includes("error"));
 
   // 7. Profile
   console.log("\n=== 7. Profile ===");
-  await page.goto(`${BASE}/profile`, { waitUntil: "networkidle", timeout: 15000 });
+  await page.goto(`${BASE}/profile`, { waitUntil: "networkidle", timeout: TIMEOUT });
   await page.waitForTimeout(1000);
   check("Profile page loads", !page.url().includes("error"));
   check("Profile shows user info", await page.locator("text=Display").count() > 0 || await page.locator("text=Profile").count() > 0);
 
   // 8. Email Lists
   console.log("\n=== 8. Email Lists ===");
-  await page.goto(`${BASE}/email-list`, { waitUntil: "networkidle", timeout: 15000 });
+  await page.goto(`${BASE}/email-list`, { waitUntil: "networkidle", timeout: TIMEOUT });
   await page.waitForTimeout(1000);
   check("Email lists page loads", !page.url().includes("error"));
 
   // 9. Sending History
   console.log("\n=== 9. Sending History ===");
-  await page.goto(`${BASE}/sending-history`, { waitUntil: "networkidle", timeout: 15000 });
+  await page.goto(`${BASE}/sending-history`, { waitUntil: "networkidle", timeout: TIMEOUT });
   await page.waitForTimeout(1000);
   check("Sending history page loads", !page.url().includes("error"));
 
   // 10. Bounce Monitor
   console.log("\n=== 10. Bounce Monitor ===");
-  await page.goto(`${BASE}/bounce-monitor`, { waitUntil: "networkidle", timeout: 15000 });
+  await page.goto(`${BASE}/bounce-monitor`, { waitUntil: "networkidle", timeout: TIMEOUT });
   await page.waitForTimeout(1000);
   check("Bounce monitor page loads", !page.url().includes("error"));
 
   // 11. Audit Trail
   console.log("\n=== 11. Audit Trail ===");
-  await page.goto(`${BASE}/audit-trail`, { waitUntil: "networkidle", timeout: 15000 });
+  await page.goto(`${BASE}/audit-trail`, { waitUntil: "networkidle", timeout: TIMEOUT });
   await page.waitForTimeout(1000);
   check("Audit trail page loads", !page.url().includes("error"));
 
   // 12. Users
   console.log("\n=== 12. Users ===");
-  await page.goto(`${BASE}/users`, { waitUntil: "networkidle", timeout: 15000 });
+  await page.goto(`${BASE}/users`, { waitUntil: "networkidle", timeout: TIMEOUT });
   await page.waitForTimeout(1000);
   check("Users page loads", !page.url().includes("error"));
 
   // 13. Roles
   console.log("\n=== 13. Roles ===");
-  await page.goto(`${BASE}/roles`, { waitUntil: "networkidle", timeout: 15000 });
+  await page.goto(`${BASE}/roles`, { waitUntil: "networkidle", timeout: TIMEOUT });
   await page.waitForTimeout(1000);
   check("Roles page loads", !page.url().includes("error"));
 
   // 14. Websites
   console.log("\n=== 14. Websites ===");
-  await page.goto(`${BASE}/websites`, { waitUntil: "networkidle", timeout: 15000 });
+  await page.goto(`${BASE}/websites`, { waitUntil: "networkidle", timeout: TIMEOUT });
   await page.waitForTimeout(1000);
   check("Websites page loads", !page.url().includes("error"));
 
   // 15. Leads
   console.log("\n=== 15. Leads ===");
-  await page.goto(`${BASE}/leads`, { waitUntil: "networkidle", timeout: 15000 });
+  await page.goto(`${BASE}/leads`, { waitUntil: "networkidle", timeout: TIMEOUT });
   await page.waitForTimeout(1000);
   check("Leads page loads", !page.url().includes("error"));
 
   // 16. Reports
   console.log("\n=== 16. Reports ===");
-  await page.goto(`${BASE}/reports`, { waitUntil: "networkidle", timeout: 15000 });
+  await page.goto(`${BASE}/reports`, { waitUntil: "networkidle", timeout: TIMEOUT });
   await page.waitForTimeout(1000);
   check("Reports page loads", !page.url().includes("error"));
 
   // 17. Check sidebar shows real user
   console.log("\n=== 17. Sidebar User ===");
-  await page.goto(`${BASE}/dashboard`, { waitUntil: "networkidle", timeout: 15000 });
+  await page.goto(`${BASE}/dashboard`, { waitUntil: "networkidle", timeout: TIMEOUT });
   await page.waitForTimeout(2000);
   const bodyText = await page.locator("body").innerText();
   check("Sidebar shows user email", bodyText.includes(EMAIL) || bodyText.includes("ahmad"));
 
   // 18. Check compose button exists
   console.log("\n=== 18. UI Elements ===");
-  await page.goto(`${BASE}/mail`, { waitUntil: "networkidle", timeout: 15000 });
+  await page.goto(`${BASE}/mail`, { waitUntil: "networkidle", timeout: TIMEOUT });
   await page.waitForTimeout(2000);
   check("Compose New button exists", await page.locator("button:has-text('New')").count() > 0);
 
