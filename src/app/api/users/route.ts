@@ -12,20 +12,21 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const db = await getDb();
-  const { email, password, name, roleId } = await req.json();
+  const { email, password, name, roleId, signatureId } = await req.json();
   const hash = await bcrypt.hash(password, 10);
   const id = String(Date.now());
-  await db.insert(users).values({ id, email, passwordHash: hash, name: name || "", roleId: roleId || "", createdAt: new Date().toISOString() });
+  await db.insert(users).values({ id, email, passwordHash: hash, name: name || "", roleId: roleId || "", signatureId: signatureId || "", createdAt: new Date().toISOString() });
   return NextResponse.json({ id });
 }
 
 export async function PUT(req: NextRequest) {
   const db = await getDb();
-  const { id, email, password, name, roleId } = await req.json();
+  const { id, email, password, name, roleId, signatureId } = await req.json();
   const updates: any = {};
   if (email) updates.email = email;
   if (name !== undefined) updates.name = name;
   if (roleId !== undefined) updates.roleId = roleId;
+  if (signatureId !== undefined) updates.signatureId = signatureId;
   if (password) updates.passwordHash = await bcrypt.hash(password, 10);
   await db.update(users).set(updates).where(eq(users.id, id));
   return NextResponse.json({ ok: true });
