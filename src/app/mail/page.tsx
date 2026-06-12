@@ -138,7 +138,17 @@ function MailPreview() {
         {loadingContent ? (
           <div className="space-y-2"><Skeleton className="h-3 w-full" /><Skeleton className="h-3 w-full" /><Skeleton className="h-3 w-3/4" /><Skeleton className="h-3 w-1/2" /></div>
         ) : (
-          <div className="text-sm whitespace-pre-wrap">{selectedMail.text || "No content"}</div>
+          <div className="space-y-4">
+            {(selectedMail.threadMessages && selectedMail.threadMessages.length > 0 ? selectedMail.threadMessages : [selectedMail]).map((msg: any, i: number) => (
+              <div key={i} className={i > 0 ? "border-t pt-4" : ""}>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-sm font-medium">{msg.from?.name || selectedMail.name}</span>
+                  <span className="text-xs text-muted-foreground">{msg.date ? new Date(msg.date).toLocaleString() : ""}</span>
+                </div>
+                <div className="text-sm whitespace-pre-wrap">{msg.text || selectedMail.text || "No content"}</div>
+              </div>
+            ))}
+          </div>
         )}
       </div>
       {mailAnalysis?.suggestedReply && !replyOpen && (

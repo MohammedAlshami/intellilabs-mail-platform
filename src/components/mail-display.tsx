@@ -226,53 +226,28 @@ export function MailDisplay({ mail }: MailDisplayProps) {
       <Separator />
       {display ? (
         <div className="flex flex-1 flex-col">
-          <div className="flex items-start p-4">
-            <div className="flex items-start gap-4 text-sm">
-              <Avatar>
-                <AvatarImage alt={display.name} />
-                <AvatarFallback>
-                  {display.name
-                    .split(" ")
-                    .map((chunk) => chunk[0])
-                    .join("")}
-                </AvatarFallback>
-              </Avatar>
-              <div className="grid gap-1">
-                <div className="font-semibold">{display.name}</div>
-                <div className="line-clamp-1 text-xs">{display.subject}</div>
-                <div className="line-clamp-1 text-xs">
-                  <span className="font-medium">Reply-To:</span> {display.email}
-                </div>
-              </div>
-            </div>
-            {display.date && (
-              <div className="ml-auto text-xs text-muted-foreground">
-                {format(new Date(display.date), "PPpp")}
-              </div>
-            )}
-          </div>
-          <Separator />
-          {display.attachments && display.attachments.length > 0 && (
-            <div className="flex flex-wrap gap-2 px-4 pt-4">
-              {display.attachments.map((att) => (
-                <button
-                  key={att.attachmentId}
-                  onClick={() => setPreviewAttachment(att.attachmentId)}
-                  className="inline-flex items-center gap-2 rounded-md border bg-muted/50 px-3 py-2 text-sm hover:bg-muted transition-colors"
-                >
-                  <Paperclip className="h-4 w-4 shrink-0" />
-                  <span className="truncate max-w-[200px]">{att.filename ?? "unnamed"}</span>
-                  {att.size != null && (
-                    <span className="text-xs text-muted-foreground shrink-0">
-                      {formatSize(att.size)}
-                    </span>
+          <div className="flex-1 overflow-y-auto">
+            {(display.threadMessages && display.threadMessages.length > 0 ? display.threadMessages : [display]).map((msg: any, i: number) => (
+              <div key={i}>
+                <div className="flex items-start p-4 pb-2">
+                  <div className="flex items-start gap-4 text-sm">
+                    <Avatar>
+                      <AvatarImage alt={msg.name || msg.from?.name || ""} />
+                      <AvatarFallback>{(msg.name || msg.from?.name || "?")[0]}</AvatarFallback>
+                    </Avatar>
+                    <div className="grid gap-1">
+                      <div className="font-semibold">{msg.name || msg.from?.name || ""}</div>
+                      <div className="line-clamp-1 text-xs">{msg.subject || display.subject}</div>
+                    </div>
+                  </div>
+                  {msg.date && (
+                    <div className="ml-auto text-xs text-muted-foreground">{format(new Date(msg.date), "PPpp")}</div>
                   )}
-                </button>
-              ))}
-            </div>
-          )}
-          <div className="flex-1 whitespace-pre-wrap p-4 text-sm">
-            {display.text}
+                </div>
+                <div className="whitespace-pre-wrap px-4 pb-4 text-sm">{msg.text || display.text}</div>
+                {i < (display.threadMessages?.length || 0) - 1 && <Separator />}
+              </div>
+            ))}
           </div>
           <Separator className="mt-auto" />
           <div className="p-4">
