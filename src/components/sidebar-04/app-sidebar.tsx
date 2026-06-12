@@ -62,12 +62,15 @@ export function AppSidebar({ collapsed, setCollapsed, ...props }: { collapsed: b
       </Sheet>
 
       {/* Desktop sidebar */}
-      <Sidebar collapsible="none" className="hidden md:flex border-r p-2 px-1 transition-[width] duration-300 ease-in-out">
-        <SidebarContent_ collapsed={collapsed} setCollapsed={setCollapsed} />
-      </Sidebar>
+      <div className="hidden md:flex">
+        <Sidebar collapsible="none" className="border-r p-2 px-1 transition-[width] duration-300 ease-in-out">
+          <SidebarContent_ collapsed={collapsed} setCollapsed={setCollapsed} />
+        </Sidebar>
+      </div>
 
       {pathname === "/mail" && (
-        <Sidebar collapsible="none" className="hidden md:flex flex-1 border-r min-w-[24rem] w-[24rem]">
+        <div className="hidden md:flex flex-1">
+          <Sidebar collapsible="none" className="flex-1 border-r min-w-[24rem] w-[24rem]">
           <Compose open={composeOpen} onOpenChange={setComposeOpen} />
           <SidebarHeader className="gap-2 border-b p-4">
             <div className="flex w-full items-center justify-between"><div className="text-foreground text-base font-medium">{FOLDER_LABELS[folder]}</div><button onClick={() => setComposeOpen(true)} className="inline-flex items-center gap-1.5 rounded-md bg-primary text-primary-foreground px-3 py-1.5 text-xs font-medium hover:bg-primary/90 transition-colors"><SquarePen className="h-3.5 w-3.5" />New</button></div>
@@ -80,6 +83,7 @@ export function AppSidebar({ collapsed, setCollapsed, ...props }: { collapsed: b
             {filteredMails.map(mail => <MailListItem key={mail.id} mail={mail} onSelect={() => setSelectedMail(mail)} />)}
           </SidebarGroupContent></SidebarGroup></SidebarContent>
         </Sidebar>
+        </div>
       )}
     </div>
   );
