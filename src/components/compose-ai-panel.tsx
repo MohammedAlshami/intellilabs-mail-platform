@@ -39,9 +39,10 @@ interface ComposeAiPanelProps {
   currentSubject: string;
   onUpdateContent: (html: string) => void;
   onUpdateSubject: (subject: string) => void;
+  onUpdateRecipients?: (to: string[], cc?: string, bcc?: string) => void;
 }
 
-export function ComposeAiPanel({ onClose, currentContent, currentSubject, onUpdateContent, onUpdateSubject }: ComposeAiPanelProps) {
+export function ComposeAiPanel({ onClose, currentContent, currentSubject, onUpdateContent, onUpdateSubject, onUpdateRecipients }: ComposeAiPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -110,11 +111,11 @@ You have the set_email tool which sets the subject and body at once.
                 break;
               case "tool_call":
                 setStreamingToolCall({ name: data.name, args: JSON.stringify(data.args) });
-                if (data.name === "set_subject" && data.args?.subject) {
-                  onUpdateSubject(data.args.subject);
-                }
-                if (data.name === "set_body" && data.args?.body) {
-                  onUpdateContent(data.args.body);
+                if (data.name === "set_subject" && data.args?.subject) onUpdateSubject(data.args.subject);
+                if (data.name === "set_body" && data.args?.body) onUpdateContent(data.args.body);
+                if (data.name === "set_recipients" && onUpdateRecipients) {
+                  const toArr = data.args?.to ? data.args.to.split(",").map((s: string) => s.trim()).filter(Boolean) : [];
+                  onUpdateRecipients(toArr, data.args?.cc || "", data.args?.bcc || "");
                 }
                 break;
               case "result":
@@ -123,6 +124,10 @@ You have the set_email tool which sets the subject and body at once.
                   for (const tc of data.toolCalls) {
                     if (tc.name === "set_subject" && tc.args?.subject) onUpdateSubject(tc.args.subject);
                     if (tc.name === "set_body" && tc.args?.body) onUpdateContent(tc.args.body);
+                    if (tc.name === "set_recipients" && onUpdateRecipients) {
+                      const toArr = tc.args?.to ? tc.args.to.split(",").map((s: string) => s.trim()).filter(Boolean) : [];
+                      onUpdateRecipients(toArr, tc.args?.cc || "", tc.args?.bcc || "");
+                    }
                   }
                 }
                 setMessages(p => [...p, {

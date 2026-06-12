@@ -30,25 +30,40 @@ export async function POST(req: NextRequest) {
 
       const setEmailTool = tool(
         ({ subject, body }) => {
-          return "I've added the email to the compose form. Let me know if you'd like to change anything.";
+          return "I've added the email subject and body. Let me know if you'd like to change anything.";
         },
         {
           name: "set_email",
-          description: "Set both the email subject and HTML body at once. Call this when drafting or updating an email.",
+          description: "Set the email subject and/or HTML body. Call this when drafting or updating an email.",
           schema: z.object({
             subject: z.string().optional().describe("The email subject line"),
-            body: z.string().optional().describe("The full email body in HTML format"),
+            body: z.string().optional().describe("The full email body in HTML format with proper <p> tags for paragraphs"),
+          }),
+        },
+      );
+
+      const setRecipientsTool = tool(
+        ({ to, cc, bcc }) => {
+          return `Recipients updated.`;
+        },
+        {
+          name: "set_recipients",
+          description: "Set the email recipients including To, CC, and BCC.",
+          schema: z.object({
+            to: z.string().optional().describe("Primary recipient email address(es), comma-separated"),
+            cc: z.string().optional().describe("CC recipient email address(es), comma-separated"),
+            bcc: z.string().optional().describe("BCC recipient email address(es), comma-separated"),
           }),
         },
       );
 
       try {
         const langchainMessages = messages.map((m: any) => {
-          if (m.role === "system") return { role: "system" as const, content: m.content + "\n\nCRITICAL INSTRUCTION: You have the set_email tool available. When the user asks you to write or draft an email, you MUST call set_email with a subject and body. NEVER respond with text templates or options. ALWAYS use the tool. Use [placeholder] values if details are missing." };
+          if (m.role === "system") return { role: "system" as const, content: m.content + "\n\nRULES:\n1. Before writing any email, ask at least one clarifying question to ensure you have all needed details. Do NOT rush to use tools.\n2. After the user responds, use set_email and set_recipients tools.\n3. Do NOT include any sign-off, closing, or signature in the body.\n4. Between paragraphs, insert <p><br></p> for blank line spacing." };
           return { role: "user" as const, content: m.content };
         });
 
-        const modelWithTools = model.bindTools([setEmailTool]);
+        const modelWithTools = model.bindTools([setEmailTool, setRecipientsTool]);
         const streamIter = await modelWithTools.stream(langchainMessages);
 
         let reasoning = "";
@@ -74,13 +89,20 @@ export async function POST(req: NextRequest) {
           let replyText = content || "I've added the email to the compose form. Let me know if you'd like to change anything.";
 
           for (const tc of toolCalls) {
-            allToolCalls.push({ name: "set_subject", args: { subject: tc.args.subject } });
-            allToolCalls.push({ name: "set_body", args: { body: tc.args.body } });
-            sse(encoder, controller, { type: "tool_call", name: "set_subject", args: { subject: tc.args.subject } });
-            sse(encoder, controller, { type: "tool_call", name: "set_body", args: { body: tc.args.body } });
+            if (tc.name === "set_email") {
+              allToolCalls.push({ name: "set_subject", args: { subject: tc.args.subject } });
+              allToolCalls.push({ name: "set_body", args: { body: tc.args.body } });
+              sse(encoder, controller, { type: "tool_call", name: "set_subject", args: { subject: tc.args.subject } });
+              sse(encoder, controller, { type: "tool_call", name: "set_body", args: { body: tc.args.body } });
+            }
+            if (tc.name === "set_recipients") {
+              allToolCalls.push({ name: "set_recipients", args: { to: tc.args.to, cc: tc.args.cc, bcc: tc.args.bcc } });
+              sse(encoder, controller, { type: "tool_call", name: "set_recipients", args: { to: tc.args.to, cc: tc.args.cc, bcc: tc.args.bcc } });
+            }
 
             try {
-              await setEmailTool.invoke(tc.args);
+              if (tc.name === "set_email") await setEmailTool.invoke(tc.args);
+              if (tc.name === "set_recipients") await setRecipientsTool.invoke(tc.args);
             } catch {}
           }
 

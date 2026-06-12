@@ -43,6 +43,10 @@ function ToolbarButton({ onClick, active, children, label }: { onClick?: () => v
 export function Compose({ open, onOpenChange, onSend, initialTo, initialSubject, initialText, replyMode, inline }: ComposeProps) {
   const [recipients, setRecipients] = useState<string[]>(initialTo ? [initialTo] : [])
   const [recipientInput, setRecipientInput] = useState("")
+  const [cc, setCc] = useState<string[]>([])
+  const [ccInput, setCcInput] = useState("")
+  const [bcc, setBcc] = useState<string[]>([])
+  const [bccInput, setBccInput] = useState("")
   const [subject, setSubject] = useState(initialSubject || "")
   const [sending, setSending] = useState(false)
   const [attachments, setAttachments] = useState<Attachment[]>([])
@@ -50,6 +54,9 @@ export function Compose({ open, onOpenChange, onSend, initialTo, initialSubject,
   const [aiPrompt, setAiPrompt] = useState("")
   const [aiStreaming, setAiStreaming] = useState(false)
   const [showAiInput, setShowAiInput] = useState(false)
+  const [showCc, setShowCc] = useState(false)
+  const [showBcc, setShowBcc] = useState(false)
+  const [signatureHtml, setSignatureHtml] = useState("")
   const [showAiPanel, setShowAiPanel] = useState(false)
 
   const editor = useEditor({
@@ -70,20 +77,13 @@ export function Compose({ open, onOpenChange, onSend, initialTo, initialSubject,
   React.useEffect(() => {
     if (initialSubject) setSubject(initialSubject)
     if (initialText && editor) editor.commands.setContent(initialText)
-    if (editor && open && !replyMode) {
+    if (open && !replyMode && !signatureHtml) {
       fetch("/api/email-signatures").then(r => r.json()).then((sigs: any[]) => {
         const def = sigs.find((s: any) => s.isDefault)
-        if (def && def.content) {
-          const cur = editor.getHTML()
-          if (!cur.includes(def.content.replace(/\n/g, "<br>"))) {
-            const sigHtml = def.content.replace(/\n/g, "<br>")
-            const sigWithBorder = `<div data-signature="true" contenteditable="false" class="border-t border-slate-200 pt-3 mt-4 text-xs text-slate-400 select-none">--<br>${sigHtml}</div>`
-            editor.commands.setContent(cur + `<p><br></p>${sigWithBorder}`)
-          }
-        }
+        if (def && def.content) setSignatureHtml(def.content.replace(/\n/g, "<br>"))
       }).catch(() => {})
     }
-  }, [initialSubject, initialText, editor, open, replyMode])
+  }, [initialSubject, initialText, editor, open, replyMode, signatureHtml])
 
   const addRecipient = () => {
     const val = recipientInput.trim()
@@ -96,6 +96,28 @@ export function Compose({ open, onOpenChange, onSend, initialTo, initialSubject,
   const handleRecipientKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addRecipient() }
     else if (e.key === "Backspace" && recipientInput === "" && recipients.length > 0) setRecipients(recipients.slice(0, -1))
+  }
+
+  const addCc = () => {
+    const val = ccInput.trim()
+    if (val && !cc.includes(val)) setCc([...cc, val])
+    setCcInput("")
+  }
+  const removeCc = (email: string) => setCc(cc.filter(r => r !== email))
+  const handleCcKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addCc() }
+    else if (e.key === "Backspace" && ccInput === "" && cc.length > 0) setCc(cc.slice(0, -1))
+  }
+
+  const addBcc = () => {
+    const val = bccInput.trim()
+    if (val && !bcc.includes(val)) setBcc([...bcc, val])
+    setBccInput("")
+  }
+  const removeBcc = (email: string) => setBcc(bcc.filter(r => r !== email))
+  const handleBccKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addBcc() }
+    else if (e.key === "Backspace" && bccInput === "" && bcc.length > 0) setBcc(bcc.slice(0, -1))
   }
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -120,7 +142,7 @@ export function Compose({ open, onOpenChange, onSend, initialTo, initialSubject,
       const res = await fetch("/api/mails/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ to: recipients.join(", "), subject, text, attachments: attachments.length > 0 ? attachments : undefined }),
+        body: JSON.stringify({ to: recipients.join(", "), cc: cc.join(", "), bcc: bcc.join(", "), subject, text, attachments: attachments.length > 0 ? attachments : undefined }),
       })
       if (!res.ok) throw new Error("Failed")
       setRecipients([])
@@ -165,27 +187,61 @@ export function Compose({ open, onOpenChange, onSend, initialTo, initialSubject,
   const formContent = (
     <div className="flex min-h-0 flex-1 flex-col">
 
-      <div className="flex items-start gap-3 border-b border-slate-100 px-5 py-3">
-        <span className="mt-1.5 text-sm text-slate-400">To:</span>
-        <div className="flex flex-1 flex-wrap items-center gap-1.5">
-          {recipients.map(email => (
-            <span key={email} className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-sm font-medium text-slate-700">
-              {email}
-              <button type="button" onClick={() => removeRecipient(email)} className="rounded-full p-0.5 text-slate-400 transition-colors hover:bg-slate-200 hover:text-slate-600">
-                <X className="h-3 w-3" />
-              </button>
-            </span>
-          ))}
-          <input
-            type="text"
-            value={recipientInput}
-            onChange={e => setRecipientInput(e.target.value)}
-            onKeyDown={handleRecipientKeyDown}
-            onBlur={addRecipient}
-            placeholder="Add recipient..."
-            className="min-w-[140px] flex-1 bg-transparent py-1 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none"
-          />
+      <div className="border-b border-slate-100 px-5 py-3">
+        <div className="flex items-start gap-3">
+          <span className="mt-1.5 text-sm text-slate-400">To:</span>
+          <div className="flex flex-1 flex-wrap items-center gap-1.5">
+            {recipients.map(email => (
+              <span key={email} className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-sm font-medium text-slate-700">
+                {email}
+                <button type="button" onClick={() => removeRecipient(email)} className="rounded-full p-0.5 text-slate-400 transition-colors hover:bg-slate-200 hover:text-slate-600">
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ))}
+            <input
+              type="text"
+              value={recipientInput}
+              onChange={e => setRecipientInput(e.target.value)}
+              onKeyDown={handleRecipientKeyDown}
+              onBlur={addRecipient}
+              placeholder="Add recipient..."
+              className="min-w-[140px] flex-1 bg-transparent py-1 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none"
+            />
+          </div>
+          <div className="flex items-center gap-2 shrink-0 mt-1">
+            <button type="button" onClick={() => setShowCc(!showCc)} className={`text-xs px-2 py-0.5 rounded transition-colors ${showCc ? "bg-slate-200 text-slate-700" : "text-slate-400 hover:text-slate-600"}`}>CC</button>
+            <button type="button" onClick={() => setShowBcc(!showBcc)} className={`text-xs px-2 py-0.5 rounded transition-colors ${showBcc ? "bg-slate-200 text-slate-700" : "text-slate-400 hover:text-slate-600"}`}>BCC</button>
+          </div>
         </div>
+        {showCc && (
+          <div className="flex items-start gap-3 mt-2">
+            <span className="mt-1.5 text-sm text-slate-400 w-[28px]">CC:</span>
+            <div className="flex flex-1 flex-wrap items-center gap-1.5">
+              {cc.map(email => (
+                <span key={email} className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-sm font-medium text-slate-700">
+                  {email}
+                  <button type="button" onClick={() => removeCc(email)} className="rounded-full p-0.5 text-slate-400 transition-colors hover:bg-slate-200 hover:text-slate-600"><X className="h-3 w-3" /></button>
+                </span>
+              ))}
+              <input type="text" value={ccInput} onChange={e => setCcInput(e.target.value)} onKeyDown={handleCcKeyDown} onBlur={addCc} placeholder="Add CC..." className="min-w-[100px] flex-1 bg-transparent py-1 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none" />
+            </div>
+          </div>
+        )}
+        {showBcc && (
+          <div className="flex items-start gap-3 mt-2">
+            <span className="mt-1.5 text-sm text-slate-400 w-[28px]">BCC:</span>
+            <div className="flex flex-1 flex-wrap items-center gap-1.5">
+              {bcc.map(email => (
+                <span key={email} className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-sm font-medium text-slate-700">
+                  {email}
+                  <button type="button" onClick={() => removeBcc(email)} className="rounded-full p-0.5 text-slate-400 transition-colors hover:bg-slate-200 hover:text-slate-600"><X className="h-3 w-3" /></button>
+                </span>
+              ))}
+              <input type="text" value={bccInput} onChange={e => setBccInput(e.target.value)} onKeyDown={handleBccKeyDown} onBlur={addBcc} placeholder="Add BCC..." className="min-w-[100px] flex-1 bg-transparent py-1 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none" />
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="flex items-center gap-3 border-b border-slate-100 px-5 py-3">
@@ -202,6 +258,9 @@ export function Compose({ open, onOpenChange, onSend, initialTo, initialSubject,
       <div className="px-5 py-4">
         <EditorContent editor={editor} />
       </div>
+      {signatureHtml && (
+        <div className="border-t border-slate-200 pt-3 mx-5 pb-3 text-sm text-slate-800 select-none" dangerouslySetInnerHTML={{ __html: "--<br>" + signatureHtml }} />
+      )}
 
       {attachments.length > 0 && (
         <div className="flex flex-wrap gap-1 px-5 pb-2">
@@ -293,6 +352,7 @@ export function Compose({ open, onOpenChange, onSend, initialTo, initialSubject,
           currentSubject={subject}
           onUpdateContent={(html) => editor?.commands.setContent(html)}
           onUpdateSubject={(s) => setSubject(s)}
+          onUpdateRecipients={(to, ccVal, bccVal) => { setRecipients(to); setCc(ccVal ? ccVal.split(",").map(s => s.trim()).filter(Boolean) : []); setBcc(bccVal ? bccVal.split(",").map(s => s.trim()).filter(Boolean) : []); }}
         />
       </div>
     )
