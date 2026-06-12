@@ -23,7 +23,7 @@ export function Compose({ open, onOpenChange, onSend, initialTo, initialSubject,
     if (initialText && editor) editor.commands.setContent(initialText);
     else if (editor && !initialText) editor.commands.setContent("");
     if (editor && open && !replyMode) {
-      fetch("/api/email-signatures").then(r => r.json()).then((sigs: any[]) => { const def = sigs.find((s: any) => s.isDefault); if (def && def.content) { const cur = editor.getText(); if (!cur.includes(def.content)) editor.commands.setContent((cur ? cur + "\n\n" : "") + "-- \n" + def.content); } }).catch(() => {})
+      fetch("/api/email-signatures").then(r => r.json()).then((sigs: any[]) => { const def = sigs.find((s: any) => s.isDefault); if (def && def.content) { const cur = editor.getHTML(); if (!cur.includes(def.content.replace(/\n/g, "<br>"))) { const sigHtml = "-- <br>" + def.content.replace(/\n/g, "<br>"); editor.commands.setContent(cur ? cur + "<p><br></p>" + sigHtml : sigHtml); } } }).catch(() => {})
     }
   }, [initialTo, initialSubject, initialText, editor, open, replyMode])
 

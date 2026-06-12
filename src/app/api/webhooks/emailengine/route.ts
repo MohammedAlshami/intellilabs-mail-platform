@@ -56,7 +56,26 @@ export async function POST(req: NextRequest) {
       if (classification === "genuine" && process.env.OPENROUTER_API_KEY) runAiAnalysis(emailId, content.subject, content.text, content.from.address).catch(() => {});
     }
     if (event === "message.bounced" || event === "messageBounce") { const db = await getDb(); const r = msgData.recipient || msgData.to?.[0]?.address || ""; if (r) { await db.insert(bounceResponses).values({ id: uuidv4(), email: r, type: "bounce", reason: msgData.response?.message || msgData.error || "Bounced", confidence: 1.0, received: new Date().toISOString(), status: "pending", createdAt: new Date().toISOString() }); await db.insert(auditLogs).values({ id: uuidv4(), action: "bounce_detected", entityType: "bounce", entityId: r, details: `Bounce detected for ${r}`, createdAt: new Date().toISOString() }); } }
-    if (event === "message.sent" || event === "messageSent") { const db = await getDb(); const qid = msgData.queueId || ""; const tos = msgData.envelope?.to || []; if (qid && tos.length > 0) { await db.insert(sendingHistory).values({ id: uuidv4(), campaign: "Direct Send", recipients: tos.length, sent: 1, date: new Date().toISOString(), status: "sent", createdAt: new Date().toISOString() }); await db.insert(auditLogs).values({ id: uuidv4(), action: "email_sent", entityType: "email", entityId: qid, details: `Email sent to ${tos.join(", ")}`, createdAt: new Date().toISOString() }); } }
+    if (event === "message.sent" || event === "messageSent") {
+      const db = await getDb();
+      const qid = msgData.queueId || "";
+      const tos = msgData.envelope?.to || [];
+      const fromAddr = msgData.envelope?.from || account;
+      const now = new Date().toISOString();
+      if (qid && tos.length > 0) {
+        // Store sent email in DB for Sent folder
+        const emailId = uuidv4();
+        await db.insert(emails).values({
+          id: emailId, messageId: qid, account: account || "ahmad",
+          fromName: fromAddr.split("@")[0] || "", fromEmail: fromAddr,
+          toEmail: tos.join(", "), subject: msgData.subject || "Sent",
+          folder: "SENT", seen: true, direction: "outbound",
+          receivedAt: now, createdAt: now, updatedAt: now,
+        });
+        await db.insert(sendingHistory).values({ id: uuidv4(), campaign: "Direct Send", recipients: tos.length, sent: 1, date: now, status: "sent", createdAt: now });
+        await db.insert(auditLogs).values({ id: uuidv4(), action: "email_sent", entityType: "email", entityId: qid, details: `Email sent to ${tos.join(", ")}`, createdAt: now });
+      }
+    }
     return NextResponse.json({ ok: true });
   } catch (err) { console.error("Webhook handler error:", err); return NextResponse.json({ ok: true }); }
 }
