@@ -15,7 +15,7 @@ const navGroups = [
   { label: "Admin", routes: [{ title: "Audit Trail", icon: ScrollText, path: "/audit-trail" }, { title: "Roles", icon: ShieldCheck, path: "/roles" }, { title: "Users", icon: UserCog, path: "/users" }] },
 ];
 
-const user = { name: "ephraim", email: "ephraim@blocks.so", avatar: "/avatar-01.png" };
+const defaultUser = { name: "User", email: "", avatar: "" };
 const FOLDER_LABELS: Record<FolderTab, string> = { inbox: "Inbox", sent: "Sent", drafts: "Drafts", trash: "Trash", archive: "Archive" };
 
 async function performAction(mailId: string, action: string) { try { await fetch(`/api/mails/${mailId}/actions`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }) }); } catch {} }
@@ -23,6 +23,8 @@ async function performAction(mailId: string, action: string) { try { await fetch
 export function AppSidebar({ collapsed, setCollapsed, ...props }: { collapsed: boolean; setCollapsed: (v: boolean) => void } & React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname(); const router = useRouter(); const [query, setQuery] = React.useState("");
   const { mails, loading, setSelectedMail, folder, setFolder } = useMail(); const { toggle: toggleAi } = useAiPanel(); const [composeOpen, setComposeOpen] = React.useState(false);
+  const [user, setUser] = React.useState(defaultUser);
+  React.useEffect(() => { fetch("/api/profile").then(r => r.json()).then(d => { if (d.name || d.email) setUser({ name: d.name || d.email, email: d.email, avatar: "" }); }).catch(() => {}); }, []);
   const filteredMails = React.useMemo(() => { const q = query.trim().toLowerCase(); if (!q) return mails; return mails.filter(m => [m.name, m.email, m.subject, m.teaser].join("\n").toLowerCase().includes(q)); }, [mails, query]);
   return (
     <div className="flex">
@@ -34,7 +36,7 @@ export function AppSidebar({ collapsed, setCollapsed, ...props }: { collapsed: b
               <SidebarGroupContent className="px-1.5 md:px-0"><SidebarMenu>{g.routes.map(r => (<SidebarMenuItem key={r.path}><SidebarMenuButton onClick={() => router.push(r.path)} isActive={pathname === r.path} className={`px-2.5 md:px-2 ${collapsed ? 'justify-center' : ''}`} title={collapsed ? r.title : undefined}><r.icon />{!collapsed && <span>{r.title}</span>}</SidebarMenuButton></SidebarMenuItem>))}</SidebarMenu></SidebarGroupContent></SidebarGroup>
           ))}
         </SidebarContent>
-        <SidebarFooter><SidebarMenu><SidebarMenuItem><SidebarMenuButton onClick={toggleAi} className={`text-gray-500 hover:text-gray-700 ${collapsed ? 'justify-center' : ''}`}><Sparkles className="size-4" />{!collapsed && <span>AI Assistant</span>}</SidebarMenuButton></SidebarMenuItem></SidebarMenu>{!collapsed && <NavUser user={user} />}</SidebarFooter>
+        <SidebarFooter><SidebarMenu><SidebarMenuItem><SidebarMenuButton onClick={toggleAi} className={`text-gray-500 hover:text-gray-700 ${collapsed ? 'justify-center' : ''}`}><Sparkles className="size-4" />{!collapsed && <span>AI Assistant</span>}</SidebarMenuButton></SidebarMenuItem></SidebarMenu>{!collapsed && <NavUser user={{ name: user.name, email: user.email, avatar: user.avatar }} />}</SidebarFooter>
       </Sidebar>
       {pathname === "/mail" && (
         <Sidebar collapsible="none" className="hidden flex-1 border-r md:flex min-w-96">
