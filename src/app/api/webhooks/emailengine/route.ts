@@ -41,8 +41,16 @@ export async function POST(req: NextRequest) {
     console.log("WEBHOOK EVENT:", event, "account:", account);
     if (!event) return NextResponse.json({ ok: true });
     if (event === "message.new" || event === "messageNew") {
-      const messageId = msgData.id || ""; if (!messageId) return NextResponse.json({ ok: true });
-      const content = await fetchEmailContent(account, messageId); if (!content) return NextResponse.json({ ok: true });
+      const messageId = msgData.id || msgData.messageId || ""; if (!messageId) return NextResponse.json({ ok: true });
+
+      let content;
+      // If inline content provided, use it directly
+      if (msgData.from || msgData.subject) {
+        content = { text: msgData.text || msgData.bodyText || "", html: msgData.html || msgData.bodyHtml || "", from: typeof msgData.from === "object" ? msgData.from : { name: "", address: msgData.from || "" }, to: Array.isArray(msgData.to) ? msgData.to : typeof msgData.to === "string" ? [{ address: msgData.to }] : [], cc: msgData.cc || [], bcc: msgData.bcc || [], subject: msgData.subject || "", attachments: msgData.attachments || [], messageId: msgData.messageId || messageId, inReplyTo: msgData.inReplyTo || "", references: msgData.references || "", date: msgData.date || new Date().toISOString(), unseen: msgData.unseen !== false, headers: msgData.headers || {} };
+      } else {
+        content = await fetchEmailContent(account, messageId);
+      }
+      if (!content) return NextResponse.json({ ok: true });
       console.log("MSG NEW:", account, msgData.path, content.subject);
       const db = await getDb(); const emailId = uuidv4(); const now = new Date().toISOString();
       const existing = await db.select().from(emails).where(eq(emails.emailengineId, messageId)).limit(1);
