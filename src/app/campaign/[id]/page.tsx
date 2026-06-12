@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, Send, Users, AlertTriangle, CheckCircle, User, ChevronLeft, ChevronRight, Bot } from 'lucide-react';
+import { ArrowLeft, Send, Users, AlertTriangle, CheckCircle, User, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, Pie, PieChart, Cell } from 'recharts';
 import MainLayout from '@/components/main-layout';
 import { RowActions } from '@/components/row-actions';
@@ -305,7 +305,7 @@ The IntelliLabs Team
                   </div>
                   <div className="border-t pt-4">
                     <div className="flex items-center gap-2 text-gray-400 text-[11px] uppercase tracking-wider mb-3">
-                      <Bot className="size-3.5" /> AI Analysis
+                      <Sparkles className="size-3.5 text-yellow-500" /> AI Analysis
                     </div>
                     <div className="bg-gray-50 rounded-lg p-4 text-gray-700 text-[12px] leading-relaxed">
                       {viewRecipient.sentiment === 'interested' ? (
@@ -321,7 +321,7 @@ The IntelliLabs Team
               ) : viewRecipient.status === 'bounced' ? (
                 <div className="border-t pt-4">
                   <div className="flex items-center gap-2 text-gray-400 text-[11px] uppercase tracking-wider mb-3">
-                    <Bot className="size-3.5" /> AI Analysis
+                    <Sparkles className="size-3.5 text-yellow-500" /> AI Analysis
                   </div>
                   <div className="bg-gray-50 rounded-lg p-4 text-gray-700 text-[12px] leading-relaxed">
                     <p>The email bounced — it was rejected by the recipient's mail server. This could indicate an invalid, inactive, or full mailbox. <strong>Recommendation:</strong> Verify the email address before including in future campaigns.</p>
@@ -330,7 +330,7 @@ The IntelliLabs Team
               ) : (
                 <div className="border-t pt-4">
                   <div className="flex items-center gap-2 text-gray-400 text-[11px] uppercase tracking-wider mb-3">
-                    <Bot className="size-3.5" /> AI Analysis
+                    <Sparkles className="size-3.5 text-yellow-500" /> AI Analysis
                   </div>
                   <div className="bg-gray-50 rounded-lg p-4 text-gray-700 text-[12px] leading-relaxed">
                     <p>The email was delivered successfully but the recipient has not responded yet. <strong>Recommendation:</strong> If this is a high-value lead, consider sending a follow-up email in 3-5 days.</p>
