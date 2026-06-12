@@ -39,10 +39,31 @@ export default function Page() {
       <div className="bg-white border border-[#e9ecef] rounded-[10px] shadow-sm overflow-hidden">
         <table className="w-full text-left border-collapse"><thead><tr className="border-b border-gray-100 bg-[#fafafa]"><th className="py-3 px-5 text-xs font-normal text-[#9ca3af]">Name</th><th className="py-3 px-5 text-xs font-normal text-[#9ca3af]">Subject</th><th className="py-3 px-5 text-xs font-normal text-[#9ca3af]">Created</th><th className="py-3 px-5 text-xs font-normal text-[#9ca3af] text-right">Actions</th></tr></thead>
           <tbody className="divide-y divide-gray-100 text-xs">
-            {paged.length === 0 ? <tr><td colSpan={4} className="py-8 text-center text-gray-400">No templates yet.</td></tr> : paged.map(t => <tr key={t.id} className="hover:bg-gray-50 transition"><td className="py-3 px-5 text-gray-700 font-medium">{t.name}</td><td className="py-3 px-5 text-gray-500 max-w-[200px] truncate">{t.subject}</td><td className="py-3 px-5 text-gray-500">{t.createdAt ? new Date(t.createdAt).toLocaleDateString() : '—'}</td><td className="py-3 px-5 text-right"><RowActions actions={[{ label: "View", onClick: () => setViewTemplate(t) }, { label: "Edit", onClick: () => { setName(t.name); setSubject(t.subject); setEditingId(t.id); if (editor) editor.commands.setContent(t.body); setShowAdd(true); } }, { label: "Delete", onClick: () => setDeleteConfirm(t.id) }]} /></td></tr>))}
+            {paged.length === 0 ? (
+              <tr><td colSpan={4} className="py-8 text-center text-gray-400">No templates yet.</td></tr>
+            ) : paged.map(t => (
+              <tr key={t.id} className="hover:bg-gray-50 transition">
+                <td className="py-3 px-5 text-gray-700 font-medium">{t.name}</td>
+                <td className="py-3 px-5 text-gray-500 max-w-[200px] truncate">{t.subject}</td>
+                <td className="py-3 px-5 text-gray-500">{t.createdAt ? new Date(t.createdAt).toLocaleDateString() : '—'}</td>
+                <td className="py-3 px-5 text-right"><RowActions actions={[
+                  { label: "View", onClick: () => setViewTemplate(t) },
+                  { label: "Edit", onClick: () => { setName(t.name); setSubject(t.subject); setEditingId(t.id); if (editor) editor.commands.setContent(t.body); setShowAdd(true); } },
+                  { label: "Delete", onClick: () => setDeleteConfirm(t.id) },
+                ]} /></td>
+              </tr>
+            ))}
           </tbody>
         </table>
-        {totalPages > 1 && <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-white"><span className="text-xs text-gray-500">Page {page + 1} of {totalPages}</span><div className="flex items-center gap-3"><button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30"><ChevronLeft className="size-4" /></button><button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1} className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30"><ChevronRight className="size-4" /></button></div></div>}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-white">
+            <span className="text-xs text-gray-500">Page {page + 1} of {totalPages}</span>
+            <div className="flex items-center gap-3">
+              <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30"><ChevronLeft className="size-4" /></button>
+              <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1} className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30"><ChevronRight className="size-4" /></button>
+            </div>
+          </div>
+        )}
       </div>
       <TemplateViewSheet template={viewTemplate} onClose={() => setViewTemplate(null)} />
       <Sheet open={showAdd} onOpenChange={o => { if (!o) { setShowAdd(false); resetForm(); } }}>
