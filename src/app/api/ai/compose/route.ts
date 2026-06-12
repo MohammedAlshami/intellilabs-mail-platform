@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { ChatOpenRouter } from "@langchain/openrouter";
 import { tool } from "langchain";
 import * as z from "zod";
+import { verifyToken } from "@/lib/auth";
 
 const EFFORTS = ["none", "minimal", "low", "medium", "high"] as const;
 
@@ -22,6 +23,9 @@ export async function POST(req: NextRequest) {
   if (!messages?.length) {
     return new Response(JSON.stringify({ reply: "Messages are required" }), { status: 400 });
   }
+
+  const token = req.cookies.get("token")?.value;
+  const user = token ? await verifyToken(token) : null;
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -57,13 +61,26 @@ export async function POST(req: NextRequest) {
         },
       );
 
+      const getUserInfoTool = tool(
+        () => {
+          if (user) return JSON.stringify({ name: user.name, email: user.email, roleId: user.roleId, permissions: user.permissions });
+          return "User info not available.";
+        },
+        {
+          name: "get_user_info",
+          description: "Get the current user's info (name, email, etc.). Call this to personalize the email with the sender's name.",
+          schema: z.object({}),
+        },
+      );
+
       try {
+        const userInfoNote = user ? `The current user is ${user.name} (${user.email}).` : "";
         const langchainMessages = messages.map((m: any) => {
-          if (m.role === "system") return { role: "system" as const, content: m.content + "\n\nRULES:\n1. Before writing any email, ask at least one clarifying question to ensure you have all needed details. Do NOT rush to use tools.\n2. After the user responds, use set_email and set_recipients tools.\n3. Do NOT include any sign-off, closing, or signature in the body.\n4. Between paragraphs, insert <p><br></p> for blank line spacing." };
+          if (m.role === "system") return { role: "system" as const, content: m.content + `\n\n${userInfoNote}\n\nRULES:\n1. Before writing any email, ask at least one clarifying question to ensure you have all needed details. Do NOT rush to use tools.\n2. After the user responds, use set_email, set_recipients, and get_user_info tools.\n3. Do NOT include any sign-off, closing, or signature in the body.\n4. Between paragraphs, insert <p><br></p> for blank line spacing.` };
           return { role: "user" as const, content: m.content };
         });
 
-        const modelWithTools = model.bindTools([setEmailTool, setRecipientsTool]);
+        const modelWithTools = model.bindTools([setEmailTool, setRecipientsTool, getUserInfoTool]);
         const streamIter = await modelWithTools.stream(langchainMessages);
 
         let reasoning = "";
@@ -103,6 +120,7 @@ export async function POST(req: NextRequest) {
             try {
               if (tc.name === "set_email") await setEmailTool.invoke(tc.args);
               if (tc.name === "set_recipients") await setRecipientsTool.invoke(tc.args);
+              if (tc.name === "get_user_info") await getUserInfoTool.invoke(tc.args || {});
             } catch {}
           }
 
