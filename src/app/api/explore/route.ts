@@ -4,7 +4,7 @@ import { execSync } from "child_process";
 
 async function ddgrSearch(query: string, maxResults: number, region?: string): Promise<{ title: string; url: string; abstract: string }[]> {
   try {
-    const count = Math.min(Math.max(maxResults, 1), 25);
+    const count = Math.min(Math.max(maxResults, 1), 50);
     const regionFlag = region && region !== "us-en" ? ` -r ${region}` : "";
     const output = execSync(`ddgr --noua --json -n ${count}${regionFlag} "${query.replace(/"/g, '\\"')}"`, {
       timeout: 20000,
@@ -57,61 +57,47 @@ function eventStream(req: NextRequest, controller: ReadableStreamDefaultControll
       });
 
       let allRawResults: { title: string; url: string; abstract: string }[] = [];
-      let searchQueries = [query];
-      const maxRounds = 3;
+      let searchQueries: string[] = [];
 
-      for (let round = 1; round <= maxRounds; round++) {
-        if (round === 1) {
-          send("reasoning", { label: "Analyzing request", description: "Understanding what to search for..." });
+      // Step 1: Generate 10 diverse search queries using AI
+      send("reasoning", { label: "Generating search strategies", description: "Creating 10 diverse search queries based on your request..." });
 
-          try {
-            const result = await model.invoke([
-              { role: "system", content: "Given the user's request, generate a short DuckDuckGo search query (max 6 words) to find COMPANY WEBSITES and LANDING PAGES. Focus on finding official business websites, not blog posts or articles. Use terms like 'official website' or target domain patterns. Return ONLY the search query text." },
-              { role: "user", content: query },
-            ]);
-            const generated = typeof result.content === "string" ? result.content.trim() : query;
-            if (generated.length > 2 && generated.split(/\s+/).length <= 10) {
-              searchQueries[0] = generated;
-            }
-          } catch {}
-
-          send("reasoning", { label: "Analyzing request", description: `Optimized query: "${searchQueries[0]}"` });
-          send("reasoning_done", {});
+      try {
+        const queriesResult = await model.invoke([
+          { role: "system", content: `You are a search strategy expert. Given a user request, generate 10 different search queries to find COMPANY WEBSITES and LANDING PAGES.
+Each query should be max 6 words, diverse, and target different angles/industries/niches related to the request.
+Focus on finding official business homepages, not articles or blog posts.
+Return the queries as a JSON array of strings ONLY.` },
+          { role: "user", content: query },
+        ]);
+        const qContent = typeof queriesResult.content === "string" ? queriesResult.content : "[]";
+        const parsed = JSON.parse(qContent);
+        if (Array.isArray(parsed)) {
+          searchQueries = parsed.filter((q: string) => q.length > 2).slice(0, 10);
         }
+      } catch {}
 
-        const currentQuery = searchQueries[searchQueries.length - 1];
-        send("search", { label: `Search round ${round}/${maxRounds}`, description: `Query: "${currentQuery}" · Region: ${regionLabel}`, round });
+      if (searchQueries.length === 0) searchQueries = [query];
 
-        const roundResults = await ddgrSearch(currentQuery, Math.min(targetCount, 25), region);
+      send("reasoning", { label: "Search queries generated", description: `${searchQueries.length} queries ready: ${searchQueries.join(" | ")}` });
+      send("reasoning_done", {});
+
+      // Step 2: Run all searches
+      for (let round = 0; round < searchQueries.length; round++) {
+        const currentQuery = searchQueries[round];
+        send("search", { label: `Search ${round + 1}/${searchQueries.length}`, description: `Query: "${currentQuery}" · Region: ${regionLabel}`, round: round + 1 });
+
+        const roundResults = await ddgrSearch(currentQuery, Math.max(targetCount, 15), region);
 
         if (roundResults.length > 0) {
           allRawResults = dedupeUrls([...allRawResults, ...roundResults]);
-          send("search_result", { results: roundResults, totalSoFar: allRawResults.length, message: `Round ${round}: found ${roundResults.length} results (${allRawResults.length} unique so far)` });
+          send("search_result", { results: roundResults, totalSoFar: allRawResults.length, message: `Query ${round + 1}: found ${roundResults.length} results (${allRawResults.length} total so far)` });
         } else {
-          send("search_result", { results: [], totalSoFar: allRawResults.length, message: `Round ${round}: no results` });
+          send("search_result", { results: [], totalSoFar: allRawResults.length, message: `Query ${round + 1}: no results` });
         }
 
-        // Check if we have enough
-        if (allRawResults.length >= targetCount || round >= maxRounds) break;
-
-        // Generate follow-up query for next round
-        send("reasoning", { label: `Need more results (${allRawResults.length}/${targetCount})`, description: "Generating a different search angle..." });
-        send("reasoning_done", {});
-
-        try {
-          const followUp = await model.invoke([
-            { role: "system", content: `We searched for "${currentQuery}" and got ${allRawResults.length} results. Generate a DIFFERENT search query (max 6 words) to find more COMPANY WEBSITES and LANDING PAGES. Focus on finding business homepages. Avoid repeating words from previous queries: ${searchQueries.join(", ")}. Return ONLY the query text.` },
-            { role: "user", content: query },
-          ]);
-          const nextQuery = typeof followUp.content === "string" ? followUp.content.trim() : "";
-          if (nextQuery.length > 2 && nextQuery.split(/\s+/).length <= 10 && !searchQueries.includes(nextQuery)) {
-            searchQueries.push(nextQuery);
-          } else {
-            break;
-          }
-        } catch {
-          break;
-        }
+        // Stop early if we have enough raw results (we'll filter later)
+        if (allRawResults.length >= targetCount * 3) break;
       }
 
       if (allRawResults.length === 0) {
@@ -130,7 +116,7 @@ function eventStream(req: NextRequest, controller: ReadableStreamDefaultControll
       let filteredResults: typeof allRawResults = [];
 
       try {
-        const filterPrompt = `You are a strict result filter. Review these search results and ONLY keep ones that are COMPANY WEBSITES or LANDING PAGES matching the user's request. EXCLUDE blog posts, articles, news stories, social media pages, Wikipedia entries, review sites, and directory listings.
+        const filterPrompt = `You are a result filter. Review these search results and keep ones that are COMPANY WEBSITES or LANDING PAGES matching the user's request. PREFER company homepages over blog posts or articles when possible, but still include any relevant business page.
 
 User request: "${query}"
 
@@ -140,10 +126,10 @@ ${existingSet.size > 0 ? Array.from(existingSet).join("\n") : "(none)"}
 Search results:
 ${JSON.stringify(allRawResults, null, 2)}
 
-PREFER URLs that look like company homepages (e.g. example.com, example.com/about, example.com/contact) over subpages.
-EXCLUDE URLs that look like articles (/blog/, /news/, /article/, etc.) or social media (facebook.com, twitter.com, linkedin.com, etc.).
+Include any result that appears to be an official company/business website, landing page, or service page relevant to the request.
+EXCLUDE only: social media pages, Wikipedia articles, job listings, and completely irrelevant results.
 
-Return ONLY a JSON array of { title, url, abstract } for company website results that match the request AND are not in the existing URLs list. Empty array if none match.`;
+Return ONLY a JSON array of { title, url, abstract } for matching results. Empty array if none match. Should have at LEAST ${targetCount} results if available.`;
 
         const filterResult = await model.invoke([
           { role: "system", content: "You are a strict result filter. Return ONLY valid JSON." },
