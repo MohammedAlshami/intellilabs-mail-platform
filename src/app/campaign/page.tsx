@@ -195,6 +195,7 @@ function CampaignPageInner() {
               <th className="py-3 px-5 text-xs font-normal text-[#9ca3af]">Sent</th>
               <th className="py-3 px-5 text-xs font-normal text-[#9ca3af]">Bounced</th>
               <th className="py-3 px-5 text-xs font-normal text-[#9ca3af]">Status</th>
+              <th className="py-3 px-5 text-xs font-normal text-[#9ca3af]">Created</th>
               <th className="py-3 px-5 text-xs font-normal text-[#9ca3af] text-right">Actions</th>
             </tr>
           </thead>
@@ -218,6 +219,7 @@ function CampaignPageInner() {
                       {c.status}
                     </span>
                   </td>
+                  <td className="py-3 px-5 text-gray-500">{c.createdAt ? new Date(c.createdAt).toLocaleDateString() : '—'}</td>
                   <td className="py-3 px-5 text-right">
                     <RowActions actions={[
                       { label: 'View', onClick: () => setViewCampaign(c) },
