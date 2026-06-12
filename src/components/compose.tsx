@@ -24,6 +24,7 @@ interface ComposeProps {
   initialText?: string
   replyMode?: boolean
   inline?: boolean
+  threadId?: string
 }
 
 function ToolbarButton({ onClick, active, children, label }: { onClick?: () => void; active?: boolean; children: React.ReactNode; label: string }) {
@@ -40,7 +41,7 @@ function ToolbarButton({ onClick, active, children, label }: { onClick?: () => v
   )
 }
 
-export function Compose({ open, onOpenChange, onSend, initialTo, initialSubject, initialText, replyMode, inline }: ComposeProps) {
+export function Compose({ open, onOpenChange, onSend, initialTo, initialSubject, initialText, replyMode, inline, threadId }: ComposeProps) {
   const [recipients, setRecipients] = useState<string[]>(initialTo ? [initialTo] : [])
   const [recipientInput, setRecipientInput] = useState("")
   const [cc, setCc] = useState<string[]>([])
@@ -139,10 +140,12 @@ export function Compose({ open, onOpenChange, onSend, initialTo, initialSubject,
     setSending(true)
     const text = editor?.getText() || ""
     try {
+      const body: any = { to: recipients.join(", "), cc: cc.join(", "), bcc: bcc.join(", "), subject, text, attachments: attachments.length > 0 ? attachments : undefined };
+      if (threadId) body.threadId = threadId;
       const res = await fetch("/api/mails/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ to: recipients.join(", "), cc: cc.join(", "), bcc: bcc.join(", "), subject, text, attachments: attachments.length > 0 ? attachments : undefined }),
+        body: JSON.stringify(body),
       })
       if (!res.ok) throw new Error("Failed")
       setRecipients([])
@@ -262,6 +265,32 @@ export function Compose({ open, onOpenChange, onSend, initialTo, initialSubject,
         <div className="border-t border-slate-200 pt-3 mx-5 pb-3 text-sm text-slate-800 select-none" dangerouslySetInnerHTML={{ __html: "--<br>" + signatureHtml }} />
       )}
 
+      <div className="flex items-center justify-between px-4 py-3">
+        <div className="flex items-center gap-1">
+          <ToolbarButton label="Bold" active={editor.isActive("bold")} onClick={() => editor.chain().focus().toggleBold().run()}><Bold className="h-4 w-4" /></ToolbarButton>
+          <ToolbarButton label="Italic" active={editor.isActive("italic")} onClick={() => editor.chain().focus().toggleItalic().run()}><Italic className="h-4 w-4" /></ToolbarButton>
+          <ToolbarButton label="Underline" active={editor.isActive("underline")} onClick={() => editor.chain().focus().toggleUnderline().run()}><UnderlineIcon className="h-4 w-4" /></ToolbarButton>
+          <div className="mx-1 h-5 w-px bg-slate-200" />
+          <ToolbarButton label="Bullet list" active={editor.isActive("bulletList")} onClick={() => editor.chain().focus().toggleBulletList().run()}><List className="h-4 w-4" /></ToolbarButton>
+          <ToolbarButton label="Numbered list" active={editor.isActive("orderedList")} onClick={() => editor.chain().focus().toggleOrderedList().run()}><ListOrdered className="h-4 w-4" /></ToolbarButton>
+          <div className="mx-1 h-5 w-px bg-slate-200" />
+          <ToolbarButton label="Link" active={editor.isActive("link")} onClick={() => { const url = window.prompt("Enter URL"); if (url) editor.chain().focus().setLink({ href: url }).run() }}><LinkIcon className="h-4 w-4" /></ToolbarButton>
+          <ToolbarButton label="Attach file" onClick={() => fileInputRef.current?.click()}><Paperclip className="h-4 w-4" /></ToolbarButton>
+          <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileSelect} />
+          <div className="mx-1 h-5 w-px bg-slate-200" />
+          <ToolbarButton label="AI Write" onClick={() => setShowAiPanel(p => !p)}><Sparkles className="h-4 w-4" /></ToolbarButton>
+        </div>
+        <button
+          type="button"
+          onClick={handleSend}
+          disabled={recipients.length === 0 || sending}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+        >
+          <Send className="h-4 w-4" />
+          {sending ? "Sending..." : "Send"}
+        </button>
+      </div>
+
       {attachments.length > 0 && (
         <div className="flex flex-wrap gap-1 px-5 pb-2">
           {attachments.map((a, i) => (
@@ -298,34 +327,6 @@ export function Compose({ open, onOpenChange, onSend, initialTo, initialSubject,
     </div>
   )
 
-  const toolbar = (
-    <div className="flex items-center justify-between rounded-full px-4 py-2">
-      <div className="flex items-center gap-1">
-        <ToolbarButton label="Bold" active={editor.isActive("bold")} onClick={() => editor.chain().focus().toggleBold().run()}><Bold className="h-4 w-4" /></ToolbarButton>
-        <ToolbarButton label="Italic" active={editor.isActive("italic")} onClick={() => editor.chain().focus().toggleItalic().run()}><Italic className="h-4 w-4" /></ToolbarButton>
-        <ToolbarButton label="Underline" active={editor.isActive("underline")} onClick={() => editor.chain().focus().toggleUnderline().run()}><UnderlineIcon className="h-4 w-4" /></ToolbarButton>
-        <div className="mx-1 h-5 w-px bg-slate-200" />
-        <ToolbarButton label="Bullet list" active={editor.isActive("bulletList")} onClick={() => editor.chain().focus().toggleBulletList().run()}><List className="h-4 w-4" /></ToolbarButton>
-        <ToolbarButton label="Numbered list" active={editor.isActive("orderedList")} onClick={() => editor.chain().focus().toggleOrderedList().run()}><ListOrdered className="h-4 w-4" /></ToolbarButton>
-        <div className="mx-1 h-5 w-px bg-slate-200" />
-        <ToolbarButton label="Link" active={editor.isActive("link")} onClick={() => { const url = window.prompt("Enter URL"); if (url) editor.chain().focus().setLink({ href: url }).run() }}><LinkIcon className="h-4 w-4" /></ToolbarButton>
-        <ToolbarButton label="Attach file" onClick={() => fileInputRef.current?.click()}><Paperclip className="h-4 w-4" /></ToolbarButton>
-        <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileSelect} />
-        <div className="mx-1 h-5 w-px bg-slate-200" />
-        <ToolbarButton label="AI Write" onClick={() => setShowAiPanel(p => !p)}><Sparkles className="h-4 w-4" /></ToolbarButton>
-      </div>
-      <button
-        type="button"
-        onClick={handleSend}
-        disabled={recipients.length === 0 || sending}
-        className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
-      >
-        <Send className="h-4 w-4" />
-        {sending ? "Sending..." : "Send"}
-      </button>
-    </div>
-  )
-
   if (inline) return <div className="border rounded-xl overflow-hidden">{formContent}</div>
 
   if (showAiPanel) {
@@ -342,9 +343,6 @@ export function Compose({ open, onOpenChange, onSend, initialTo, initialSubject,
               {formContent}
             </div>
           </div>
-          <div className="px-5 py-3">
-            {toolbar}
-          </div>
         </div>
         <ComposeAiPanel
           onClose={() => setShowAiPanel(false)}
@@ -359,7 +357,7 @@ export function Compose({ open, onOpenChange, onSend, initialTo, initialSubject,
   }
 
   return (
-    <Modal open={open} onClose={() => onOpenChange(false)} footer={toolbar}>
+    <Modal open={open} onClose={() => onOpenChange(false)}>
       {formContent}
     </Modal>
   )

@@ -1,6 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
-import { usePathname } from "next/navigation";
+import { useEffect, useState, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { Paperclip, Download, Sparkles, ThumbsUp, ThumbsDown, Minus, Send, X, Check } from "lucide-react";
 import MainLayout from "@/components/main-layout";
 import { useMail, type Mail, type Attachment } from "@/components/sidebar-04/mail-context";
@@ -179,7 +179,11 @@ function MailPreview() {
           </div>
         </DialogContent>
       </Dialog>
-      {replyOpen && <div className="border-t"><Compose open={true} onOpenChange={setReplyOpen} initialTo={selectedMail.email} initialSubject={`Re: ${selectedMail.subject}`} initialText={usingAiReply && mailAnalysis ? mailAnalysis.suggestedReply : undefined} replyMode inline /></div>}
+      {replyOpen && (
+        <div className="border-t p-4">
+          <Compose open={true} onOpenChange={setReplyOpen} initialTo={selectedMail.email} initialSubject={`Re: ${selectedMail.subject}`} initialText={usingAiReply && mailAnalysis ? mailAnalysis.suggestedReply : undefined} replyMode inline threadId={selectedMail.threadId || undefined} />
+        </div>
+      )}
       {!replyOpen && !mailAnalysis?.suggestedReply && <div className="border-t px-4 py-2"><Button variant="ghost" size="sm" onClick={() => setReplyOpen(true)} className="text-xs"><Send className="h-3.5 w-3.5 mr-1.5" />Reply</Button></div>}
       {previewAtt && <AttachmentPreview attachment={previewAtt} messageId={selectedMail.id} open={!!previewAtt} onOpenChange={open => { if (!open) setPreviewAtt(null); }} />}
     </div>
@@ -190,16 +194,16 @@ const FOLDER_API_PATH: Record<string, string> = { inbox: "INBOX", sent: "\\Sent"
 
 function MailApp() {
   const { setMails, setLoading, folder, setSelectedMail, mails } = useMail();
-  const pathname = usePathname();
-  const mailIdFromUrl = pathname.split("/mail/")[1];
+  const searchParams = useSearchParams();
+  const mailIdFromUrl = searchParams.get("id");
 
   useEffect(() => {
     setLoading(true);
     const path = FOLDER_API_PATH[folder] || "INBOX";
-    fetch(`/api/mails?path=${encodeURIComponent(path)}`).then(r => r.json()).then(d => { const items = d.threads || d.mails || []; const mapped = items.map((m: any) => ({ id: m.threadId || m.id, threadId: m.threadId || null, name: (m.from?.name || m.name || m.email || ""), email: (m.from?.email || m.email || ""), subject: m.subject, date: m.date, teaser: (m.preview || (m.text || "").substring(0, 300) || ""), labels: m.labels || [], hasAttachments: m.hasAttachments, messageCount: m.messageCount })); setMails(mapped); if (mailIdFromUrl) { const found = mapped.find(m => m.id === decodeURIComponent(mailIdFromUrl)); if (found) setSelectedMail(found); } }).catch(console.error).finally(() => setLoading(false));
+    fetch(`/api/mails?path=${encodeURIComponent(path)}`).then(r => r.json()).then(d => { const items = d.threads || d.mails || []; const mapped = items.map((m: any) => ({ id: m.threadId || m.id, threadId: m.threadId || null, name: (m.from?.name || m.name || m.email || ""), email: (m.from?.email || m.email || ""), subject: m.subject, date: m.date, teaser: (m.preview || (m.text || "").substring(0, 300) || ""), labels: m.labels || [], hasAttachments: m.hasAttachments, messageCount: m.messageCount })); setMails(mapped); if (mailIdFromUrl) { const found = mapped.find(m => m.id === mailIdFromUrl); if (found) setSelectedMail(found); } }).catch(console.error).finally(() => setLoading(false));
   }, [folder]);
   return <MailPreview />;
 }
 
-export default function Page() { return <MainLayout><MailApp /></MainLayout>; }
+export default function Page() { return <MainLayout><Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Loading...</div>}><MailApp /></Suspense></MainLayout>; }
 function formatSize(bytes: number): string { if (bytes < 1024) return `${bytes}B`; if (bytes < 1024*1024) return `${(bytes/1024).toFixed(1)}KB`; return `${(bytes/(1024*1024)).toFixed(1)}MB`; }

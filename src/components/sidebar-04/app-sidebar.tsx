@@ -80,7 +80,7 @@ export function AppSidebar({ collapsed, setCollapsed, ...props }: { collapsed: b
           <SidebarContent><SidebarGroup className="px-0 pt-0"><SidebarGroupContent>
             {loading && <div className="p-4 space-y-3">{[1,2,3,4,5].map(i => <div key={i} className="space-y-2 animate-pulse"><div className="h-4 w-3/4 rounded bg-muted" /><div className="h-3 w-1/2 rounded bg-muted" /><div className="h-3 w-full rounded bg-muted" /></div>)}</div>}
             {!loading && filteredMails.length === 0 && <div className="text-muted-foreground p-4 text-sm">No emails</div>}
-            {filteredMails.map(mail => <MailListItem key={mail.id} mail={mail} onSelect={() => { setSelectedMail(mail); router.push(`/mail/${encodeURIComponent(mail.id)}`, { scroll: false }); }} />)}
+            {filteredMails.map(mail => <MailListItem key={mail.id} mail={mail} onSelect={() => { setSelectedMail(mail); window.history.replaceState(null, "", `/mail?id=${encodeURIComponent(mail.id)}`); }} />)}
           </SidebarGroupContent></SidebarGroup></SidebarContent>
         </Sidebar>
         </div>

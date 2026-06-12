@@ -55,7 +55,8 @@ export async function POST(req: NextRequest) {
       const db = await getDb(); const emailId = uuidv4(); const now = new Date().toISOString();
       const existing = await db.select().from(emails).where(eq(emails.emailengineId, messageId)).limit(1);
       if (existing.length > 0) return NextResponse.json({ ok: true });
-      const threadId = await ensureThread(db, content.subject, content.inReplyTo, content.from.address, content.to?.[0]?.address || "", content.date);
+      const existingThreadId = content.threadId || msgData.threadId || null;
+      const threadId = existingThreadId || await ensureThread(db, content.subject, content.inReplyTo, content.from.address, content.to?.[0]?.address || "", content.date);
       const path = body.path || msgData.path || "INBOX";
       const dbFolder = path === "Sent" || path === "\\Sent" ? "SENT" : "INBOX";
       const direction = dbFolder === "SENT" ? "outbound" : "inbound";
