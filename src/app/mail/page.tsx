@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { Paperclip, Download, Sparkles, ThumbsUp, ThumbsDown, Minus, Send, X, Check } from "lucide-react";
 import MainLayout from "@/components/main-layout";
 import { useMail, type Mail, type Attachment } from "@/components/sidebar-04/mail-context";
@@ -188,11 +189,14 @@ function MailPreview() {
 const FOLDER_API_PATH: Record<string, string> = { inbox: "INBOX", sent: "\\Sent", drafts: "\\Drafts", trash: "\\Trash", archive: "\\Archive" };
 
 function MailApp() {
-  const { setMails, setLoading, folder } = useMail();
+  const { setMails, setLoading, folder, setSelectedMail, mails } = useMail();
+  const pathname = usePathname();
+  const mailIdFromUrl = pathname.split("/mail/")[1];
+
   useEffect(() => {
     setLoading(true);
     const path = FOLDER_API_PATH[folder] || "INBOX";
-    fetch(`/api/mails?path=${encodeURIComponent(path)}`).then(r => r.json()).then(d => { const items = d.threads || d.mails || []; setMails(items.map((m: any) => ({ id: m.threadId || m.id, threadId: m.threadId || null, name: (m.from?.name || m.name || m.email || ""), email: (m.from?.email || m.email || ""), subject: m.subject, date: m.date, teaser: (m.preview || (m.text || "").substring(0, 300) || ""), labels: m.labels || [], hasAttachments: m.hasAttachments, messageCount: m.messageCount }))); }).catch(console.error).finally(() => setLoading(false));
+    fetch(`/api/mails?path=${encodeURIComponent(path)}`).then(r => r.json()).then(d => { const items = d.threads || d.mails || []; const mapped = items.map((m: any) => ({ id: m.threadId || m.id, threadId: m.threadId || null, name: (m.from?.name || m.name || m.email || ""), email: (m.from?.email || m.email || ""), subject: m.subject, date: m.date, teaser: (m.preview || (m.text || "").substring(0, 300) || ""), labels: m.labels || [], hasAttachments: m.hasAttachments, messageCount: m.messageCount })); setMails(mapped); if (mailIdFromUrl) { const found = mapped.find(m => m.id === decodeURIComponent(mailIdFromUrl)); if (found) setSelectedMail(found); } }).catch(console.error).finally(() => setLoading(false));
   }, [folder]);
   return <MailPreview />;
 }
