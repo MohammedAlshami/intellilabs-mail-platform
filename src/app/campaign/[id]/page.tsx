@@ -127,7 +127,7 @@ export default function CampaignDetailPage() {
           </div>
           <div className="space-y-4">
             <div><span className="text-gray-400 block text-[11px] uppercase tracking-wider mb-0.5">Subject</span><span className="text-gray-700 font-medium">{campaign.subject}</span></div>
-            <div><span className="text-gray-400 block text-[11px] uppercase tracking-wider mb-0.5">Sent At</span><span className="text-gray-700">{new Date(campaign.createdAt).toLocaleString()}</span></div>
+            <div><span className="text-gray-400 block text-[11px] uppercase tracking-wider mb-0.5">Sent At</span><span className="text-gray-700">{campaign.createdAt ? new Date(campaign.createdAt).toLocaleString() : '—'}</span></div>
             <div><span className="text-gray-400 block text-[11px] uppercase tracking-wider mb-0.5">Status</span><span className="text-gray-700 capitalize">{campaign.status}</span></div>
           </div>
           <div className="border-t pt-4">
@@ -183,7 +183,7 @@ The IntelliLabs Team`}
               <div><span className="text-gray-400 block text-[11px] uppercase tracking-wider mb-0.5">Sent</span><span className="text-gray-700">{campaign.sent}</span></div>
               <div><span className="text-gray-400 block text-[11px] uppercase tracking-wider mb-0.5">Bounced</span><span className="text-gray-700">{campaign.bounced}</span></div>
               <div><span className="text-gray-400 block text-[11px] uppercase tracking-wider mb-0.5">Status</span><span className="text-gray-700 capitalize">{campaign.status}</span></div>
-              <div><span className="text-gray-400 block text-[11px] uppercase tracking-wider mb-0.5">Created</span><span className="text-gray-700">{new Date(campaign.createdAt).toLocaleString()}</span></div>
+              <div><span className="text-gray-400 block text-[11px] uppercase tracking-wider mb-0.5">Created</span><span className="text-gray-700">{campaign.createdAt ? new Date(campaign.createdAt).toLocaleString() : '—'}</span></div>
             </div>
           </div>
         </div>
@@ -226,7 +226,7 @@ The IntelliLabs Team`}
                         }`}>{r.sentiment}</span>
                       ) : <span className="text-gray-300">—</span>}
                     </td>
-                    <td className="py-3 px-5 text-gray-500">{new Date(r.sentAt).toLocaleString()}</td>
+                    <td className="py-3 px-5 text-gray-500">{r.sentAt ? new Date(r.sentAt).toLocaleString() : '—'}</td>
                     <td className="py-3 px-5 text-right">
                       <RowActions actions={[
                         { label: 'View Details', onClick: () => setViewRecipient(r) },
@@ -277,7 +277,7 @@ The IntelliLabs Team`}
                   viewRecipient.status === 'responded' ? 'bg-green-50 text-green-700 border-green-200' :
                   'bg-red-50 text-red-600 border-red-200'
                 }`}>{viewRecipient.status}</span></div>
-                <div><span className="text-gray-400 block text-[11px] uppercase tracking-wider mb-0.5">Sent At</span><span className="text-gray-700">{new Date(viewRecipient.sentAt).toLocaleString()}</span></div>
+                <div><span className="text-gray-400 block text-[11px] uppercase tracking-wider mb-0.5">Sent At</span><span className="text-gray-700">{viewRecipient.sentAt ? new Date(viewRecipient.sentAt).toLocaleString() : '—'}</span></div>
               </div>
 
               <div className="border-t pt-4">
