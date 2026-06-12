@@ -69,11 +69,15 @@ export default function Page() {
 }
 
 function SignatureViewSheet({ signature, onClose }: { signature: Signature | null; onClose: () => void }) {
+  const [editorKey, setEditorKey] = useState(0);
   const html = signature ? (signature.content || "").replace(/\n/g, "<br>") : "";
   const editor = useEditor({ extensions: [StarterKit], content: html, editable: false, editorProps: { attributes: { class: "text-sm max-w-none focus:outline-none p-3 leading-relaxed" } } });
-  useEffect(() => { if (editor && signature) { const h = (signature.content || "").replace(/\n/g, "<br>"); editor.commands.setContent(h); } }, [signature?.id, editor]);
+  useEffect(() => {
+    setEditorKey(k => k + 1);
+    if (editor && signature) { setTimeout(() => { const h = (signature.content || "").replace(/\n/g, "<br>"); editor.commands.setContent(h); }, 50); }
+  }, [signature?.id]);
   if (!signature) return null;
-  return <Sheet open={!!signature} onOpenChange={o => { if (!o) onClose(); }}><SheetContent className="sm:max-w-xl"><SheetHeader><SheetTitle>{signature.name}</SheetTitle><SheetDescription>{signature.isDefault ? "Default Signature" : "Custom Signature"}</SheetDescription></SheetHeader><div className="py-4 space-y-4">
+  return <Sheet open={!!signature} onOpenChange={o => { if (!o) onClose(); }}><SheetContent className="sm:max-w-xl"><SheetHeader><SheetTitle>{signature.name}</SheetTitle><SheetDescription>{signature.isDefault ? "Default Signature" : "Custom Signature"}</SheetDescription></SheetHeader><div className="py-4 space-y-4" key={editorKey}>
     <div className="flex items-center gap-3 p-3 bg-muted/20 rounded-lg border"><Avatar className="h-10 w-10"><AvatarFallback className="bg-primary text-primary-foreground text-sm font-medium">{signature.name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}</AvatarFallback></Avatar><div><p className="text-sm font-medium">{signature.name}</p><p className="text-xs text-muted-foreground">{signature.isDefault ? "Default" : "Custom"} Signature</p></div></div>
     <div className="border rounded-lg overflow-hidden"><EditorContent editor={editor} /></div>
     <div className="text-xs text-muted-foreground border-t pt-3 flex items-center gap-2"><svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg><span>IntelliLabs Mail Platform</span></div>

@@ -86,8 +86,30 @@ export default function Page() {
 }
 
 function TemplateViewSheet({ template, onClose }: { template: Template | null; onClose: () => void }) {
-  const editor = useEditor({ extensions: [StarterKit], content: template?.body || "", editable: false, editorProps: { attributes: { class: "text-sm max-w-none focus:outline-none p-3 leading-relaxed" } } });
-  useEffect(() => { if (editor && template) editor.commands.setContent(template.body || ""); }, [template?.id, editor]);
+  const [editorKey, setEditorKey] = useState(0);
+  const editor = useEditor({
+    extensions: [StarterKit],
+    content: template?.body || "",
+    editable: false,
+    editorProps: { attributes: { class: "text-sm max-w-none focus:outline-none p-3 leading-relaxed" } },
+  });
+  useEffect(() => {
+    setEditorKey(k => k + 1);
+    if (editor && template) {
+      setTimeout(() => editor.commands.setContent(template.body || ""), 50);
+    }
+  }, [template?.id]);
   if (!template) return null;
-  return <Sheet open={!!template} onOpenChange={o => { if (!o) onClose(); }}><SheetContent className="sm:max-w-xl"><SheetHeader><SheetTitle>{template.name}</SheetTitle><SheetDescription className="text-xs font-medium text-gray-500 mt-1">Subject: {template.subject}</SheetDescription></SheetHeader><div className="py-4"><div className="border rounded-lg bg-white"><EditorContent editor={editor} /></div></div></SheetContent></Sheet>;
+  return (
+    <Sheet open={!!template} onOpenChange={o => { if (!o) onClose(); }}>
+      <SheetContent className="sm:max-w-xl">
+        <SheetHeader><SheetTitle>{template.name}</SheetTitle><SheetDescription className="text-xs font-medium text-gray-500 mt-1">Subject: {template.subject}</SheetDescription></SheetHeader>
+        <div className="py-4">
+          <div className="border rounded-lg bg-white" key={editorKey}>
+            <EditorContent editor={editor} />
+          </div>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
 }
