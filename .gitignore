@@ -44,3 +44,4 @@ preview_*.log
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+app.db*
