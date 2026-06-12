@@ -170,7 +170,7 @@ function MailApp() {
   useEffect(() => {
     setLoading(true);
     const path = FOLDER_API_PATH[folder] || "INBOX";
-    fetch(`/api/mails?path=${encodeURIComponent(path)}`).then(r => r.json()).then(d => { if (d.mails) setMails(d.mails.map((m: any) => ({ id: m.id, name: m.name, email: m.email, subject: m.subject, date: m.date, teaser: m.text?.substring(0, 300) ?? "", labels: m.labels, hasAttachments: m.hasAttachments }))); }).catch(console.error).finally(() => setLoading(false));
+    fetch(`/api/mails?path=${encodeURIComponent(path)}`).then(r => r.json()).then(d => { const items = d.threads || d.mails || []; setMails(items.map((m: any) => ({ id: m.threadId || m.id, name: m.from?.name || m.name || m.email || "", email: m.from?.email || m.email || "", subject: m.subject, date: m.date, teaser: m.preview || m.text?.substring(0, 300) ?? "", labels: m.labels || [], hasAttachments: m.hasAttachments, messageCount: m.messageCount }))); }).catch(console.error).finally(() => setLoading(false));
   }, [folder]);
   return <MailPreview />;
 }

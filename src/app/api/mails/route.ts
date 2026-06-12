@@ -9,8 +9,32 @@ export async function GET(req: NextRequest) {
     const account = searchParams.get("account") || DEFAULT_ACCOUNT;
     const dbFolder = FOLDER_MAP[path] || "INBOX";
     const db = await getDb();
-    const rows = await db.select().from(emails).where(and(eq(emails.folder, dbFolder), eq(emails.account, account))).orderBy(desc(emails.receivedAt)).limit(100);
-    const mails = rows.map((msg) => ({ id: msg.id, name: msg.fromName || msg.fromEmail, email: msg.fromEmail, subject: msg.subject || "(no subject)", text: msg.bodyText || "", date: msg.receivedAt, read: msg.seen, labels: [msg.folder.toLowerCase()], hasAttachments: msg.hasAttachments, threadId: msg.threadId }));
-    return NextResponse.json({ mails });
+    const rows = await db.select().from(emails).where(and(eq(emails.folder, dbFolder), eq(emails.account, account))).orderBy(desc(emails.receivedAt)).limit(200);
+    // Group by threadId
+    const threadMap = new Map<string, any[]>();
+    for (const msg of rows) {
+      const key = msg.threadId || msg.id;
+      if (!threadMap.has(key)) threadMap.set(key, []);
+      threadMap.get(key)!.push(msg);
+    }
+    const threads = Array.from(threadMap.values()).map(group => {
+      const sorted = group.sort((a, b) => (b.receivedAt || "").localeCompare(a.receivedAt || ""));
+      const latest = sorted[0];
+      return {
+        id: latest.threadId || latest.id,
+        threadId: latest.threadId || null,
+        subject: latest.subject || "(no subject)",
+        from: { name: latest.fromName || latest.fromEmail, email: latest.fromEmail },
+        to: latest.toEmail || "",
+        preview: latest.bodyText?.slice(0, 100) || "",
+        date: latest.receivedAt,
+        read: latest.seen,
+        messageCount: group.length,
+        participants: Array.from(new Set(group.map(m => m.fromName || m.fromEmail).filter(Boolean))),
+        labels: [latest.folder.toLowerCase()],
+        hasAttachments: group.some(m => m.hasAttachments),
+      };
+    }).sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+    return NextResponse.json({ threads });
   } catch (err) { console.error("DB fetch error:", err); return NextResponse.json({ error: "Failed to fetch mails" }, { status: 500 }); }
 }
