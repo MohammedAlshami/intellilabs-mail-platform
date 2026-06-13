@@ -36,7 +36,7 @@ interface ChatMessage {
 }
 
 export function AiChatPanel() {
-  const { open, close, messages, setMessages } = useAiPanel();
+  const { open, close, messages, setMessages, setComposeData } = useAiPanel();
   const router = useRouter();
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -58,7 +58,10 @@ export function AiChatPanel() {
     setStreamingToolCall(null);
 
     try {
-      const convMessages = [...messages, { role: "user", content: msg }];
+      // Pass current thread context to AI
+      const threadId = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("id") : null;
+      const threadContext = threadId ? `\n[Current thread ID: ${threadId}]` : "";
+      const convMessages = [...messages, { role: "user", content: msg + threadContext }];
       const res = await fetch("/api/ai/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -126,6 +129,19 @@ export function AiChatPanel() {
                   reasoning: data.reasoning || "",
                   toolCalls: tcs,
                 }]);
+                // If AI called set_email/set_recipients, save compose data
+                const emailCall = tcs.find((tc: any) => tc.name === "set_email" || tc.name === "set_subject");
+                if (emailCall) {
+                  try {
+                    const args = typeof emailCall.args === "string" ? JSON.parse(emailCall.args) : emailCall.args;
+                    const threadId = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("id") : null;
+                    setComposeData({
+                      subject: args.subject || "",
+                      body: args.body || "",
+                      threadId: threadId || undefined,
+                    });
+                  } catch {}
+                }
                 break;
               case "error":
                 setMessages(p => [...p, { role: "assistant", content: `Error: ${data.message}` }]);

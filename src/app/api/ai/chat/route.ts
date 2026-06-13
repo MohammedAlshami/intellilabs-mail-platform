@@ -1,12 +1,23 @@
 import { NextRequest } from "next/server";
 import { getDb } from "@/db";
-import { like, or, and, eq, sql } from "drizzle-orm";
+import { like, or, and, eq, asc, sql } from "drizzle-orm";
 import {
   websites, campaigns, leads, emailLists, sendingHistory,
-  bounceResponses, removalList, auditLogs, roles, users,
+  bounceResponses, removalList, auditLogs, roles, users, emails,
 } from "@/db/schema";
-import { ChatOpenRouter } from "@langchain/openrouter";
-import { HumanMessage, SystemMessage, ToolMessage } from "@langchain/core/messages";
+import { Agent, Runner, tool } from "@openai/agents";
+import { OpenAIProvider, setOpenAIAPI } from "@openai/agents-openai";
+import { z } from "zod";
+import { verifyToken } from "@/lib/auth";
+
+setOpenAIAPI("chat_completions");
+
+const provider = new OpenAIProvider({
+  baseURL: "https://openrouter.ai/api/v1",
+  apiKey: process.env.OPENROUTER_API_KEY!,
+});
+
+const runner = new Runner({ modelProvider: provider });
 
 const TABLE_MAP: Record<string, any> = {
   websites, campaigns, leads, "email-lists": emailLists,
@@ -35,33 +46,11 @@ const PAGES = [
   "Audit Trail (/audit-trail)", "Roles (/roles)", "Users (/users)", "Profile (/profile)",
 ];
 
-const TOOL_DEFS = [
-  {
-    name: "navigate",
-    description: `Navigate to a page. Pages: ${PAGES.join(", ")}.`,
-    schema: { type: "object", properties: { page: { type: "string" }, path: { type: "string" } }, required: ["page", "path"] },
-  },
-  {
-    name: "search",
-    description: "Search across a data table. Tables: websites, campaigns, leads, email-lists, sending-history, bounce-responses, removal-list, audit-logs, roles, users.",
-    schema: { type: "object", properties: { table: { type: "string" }, q: { type: "string" }, filters: { type: "array", items: { type: "object", properties: { column: { type: "string" }, value: { type: "string" } } } } }, required: ["table"] },
-  },
-  {
-    name: "get",
-    description: "Get a single record by ID.",
-    schema: { type: "object", properties: { table: { type: "string" }, id: { type: "string" } }, required: ["table", "id"] },
-  },
-  {
-    name: "counts",
-    description: "Get record counts across all tables.",
-    schema: { type: "object", properties: {} },
-  },
-  {
-    name: "export",
-    description: "Export data from any table as CSV. Tables: websites, campaigns, leads, email-lists, sending-history, bounce-responses, removal-list, audit-logs, roles, users.",
-    schema: { type: "object", properties: { table: { type: "string" }, q: { type: "string" }, filters: { type: "array", items: { type: "object", properties: { column: { type: "string" }, value: { type: "string" } } } } }, required: ["table"] },
-  },
-];
+const EFFORTS = ["none", "minimal", "low", "medium", "high"] as const;
+
+function sse(encoder: TextEncoder, controller: ReadableStreamDefaultController, data: any) {
+  controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+}
 
 async function executeTool(name: string, argsStr: string): Promise<string> {
   const args = JSON.parse(argsStr);
@@ -118,54 +107,6 @@ async function executeTool(name: string, argsStr: string): Promise<string> {
   }
 }
 
-const EFFORTS = ["none", "minimal", "low", "medium", "high"] as const;
-
-function createModel(effort: string) {
-  return new ChatOpenRouter({
-    model: "openai/gpt-5-nano",
-    apiKey: process.env.OPENROUTER_API_KEY!,
-    modelKwargs: { reasoning: { effort: EFFORTS.includes(effort as any) ? effort : "medium" } },
-  });
-}
-
-function sse(encoder: TextEncoder, controller: ReadableStreamDefaultController, data: any) {
-  controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
-}
-
-async function streamModel(
-  model: ChatOpenRouter,
-  messages: any[],
-  encoder: TextEncoder,
-  controller: ReadableStreamDefaultController,
-): Promise<{ content: string; reasoning: string; toolCalls?: any[]; message?: any }> {
-  const stream = await model.stream(messages);
-  let fullContent = "";
-  let fullReasoning = "";
-  let accumulated: any = null;
-
-  for await (const chunk of stream) {
-    accumulated = accumulated ? accumulated.concat(chunk) : chunk;
-    const rc = (chunk.additional_kwargs as any)?.reasoning_content;
-    if (rc && typeof rc === "string") {
-      fullReasoning += rc;
-      sse(encoder, controller, { type: "reasoning", content: rc });
-    }
-    if (chunk.content) {
-      const text = typeof chunk.content === "string" ? chunk.content : "";
-      if (text) {
-        fullContent += text;
-        sse(encoder, controller, { type: "text", content: text });
-      }
-    }
-  }
-
-  const toolCalls = (accumulated as any)?.tool_calls;
-  if (toolCalls?.length) {
-    return { content: fullContent, reasoning: fullReasoning, toolCalls, message: accumulated };
-  }
-  return { content: fullContent, reasoning: fullReasoning, message: accumulated };
-}
-
 export async function POST(req: NextRequest) {
   const { messages, reasoningEffort } = await req.json();
   if (!messages?.length) {
@@ -175,63 +116,218 @@ export async function POST(req: NextRequest) {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) return new Response(JSON.stringify({ reply: "API key not configured" }), { status: 500 });
 
-  const systemPrompt = `You are an AI assistant for the IntelliLabs Email Operations Platform.
-Available pages: ${PAGES.join(", ")}.
-You have tools: navigate (go to a page), search (query data), get (get record), counts (get totals), export (export CSV).
-Rules:
-- If the user wants to go to a page, use the navigate tool.
-- If the user asks to find/list/search data, use search, get, or counts.
-- If the user wants to export, use the export tool.
-- Remember conversation context.
-- Be concise and helpful.`;
+  const token = req.cookies.get("token")?.value;
+  const user = token ? await verifyToken(token) : null;
+  const userInfoNote = user ? `The current user is ${user.name} (${user.email}).` : "";
 
   const stream = new ReadableStream({
     async start(controller) {
       const encoder = new TextEncoder();
-      const model = createModel(reasoningEffort ?? "medium");
-      const langchainMessages = [
-        new SystemMessage(systemPrompt),
-        ...messages.map((m: any) => new HumanMessage(m.content)),
-      ];
+
+      const navigateTool = tool({
+        name: "navigate",
+        description: `Navigate to a page. Pages: ${PAGES.join(", ")}.`,
+        parameters: z.object({ page: z.string(), path: z.string() }),
+        strict: true,
+        execute: async ({ page, path }) => `Navigating to ${page} at ${path}`,
+      });
+
+      const searchTool = tool({
+        name: "search",
+        description: "Search across a data table. Tables: websites, campaigns, leads, email-lists, sending-history, bounce-responses, removal-list, audit-logs, roles, users.",
+        parameters: z.object({
+          table: z.string(),
+          q: z.string().optional(),
+          filters: z.array(z.object({ column: z.string(), value: z.string() })).optional(),
+        }),
+        strict: true,
+        execute: async ({ table, q, filters }) => executeTool("search", JSON.stringify({ table, q, filters })),
+      });
+
+      const getTool = tool({
+        name: "get",
+        description: "Get a single record by ID.",
+        parameters: z.object({ table: z.string(), id: z.string() }),
+        strict: true,
+        execute: async ({ table, id }) => executeTool("get", JSON.stringify({ table, id })),
+      });
+
+      const getThreadTool = tool({
+        name: "get_thread",
+        description: "Get all messages in an email thread by thread ID. Call this when the user asks about an email thread or wants to reply to one.",
+        parameters: z.object({ threadId: z.string().describe("The email thread ID from the URL. You can pass it with or without angle brackets.") }),
+        strict: true,
+        execute: async ({ threadId }) => {
+          try {
+            const db = await getDb();
+            // Thread IDs are stored WITH angle brackets in DB, try both formats
+            const withBrackets = threadId.includes("<") ? threadId : `<${threadId}>`;
+            const rows = await db.select().from(emails).where(eq(emails.threadId, withBrackets)).orderBy(asc(emails.receivedAt));
+            if (rows.length === 0) {
+              return "Thread not found. The ID might be from a different system or the messages haven't been synced yet.";
+            }
+            return JSON.stringify(rows.map((m: any) => ({
+              from: m.fromEmail || "",
+              subject: m.subject || "",
+              text: (m.bodyText || m.bodyHtml || "").slice(0, 2000),
+              date: m.receivedAt || "",
+              folder: m.folder || "",
+            })));
+          } catch (e: any) {
+            return `Error fetching thread: ${e.message}`;
+          }
+        },
+      });
+
+      const countsTool = tool({
+        name: "counts",
+        description: "Get record counts across all tables.",
+        parameters: z.object({}),
+        strict: true,
+        execute: async () => executeTool("counts", "{}"),
+      });
+
+      const exportTool = tool({
+        name: "export",
+        description: "Export data from any table as CSV.",
+        parameters: z.object({
+          table: z.string(),
+          q: z.string().optional(),
+          filters: z.array(z.object({ column: z.string(), value: z.string() })).optional(),
+        }),
+        strict: true,
+        execute: async ({ table, q, filters }) => executeTool("export", JSON.stringify({ table, q, filters })),
+      });
+
+      const setEmailTool = tool({
+        name: "set_email",
+        description: "Set the email subject and/or HTML body. Call this when drafting or updating an email reply.",
+        parameters: z.object({
+          subject: z.string().optional().describe("The email subject line"),
+          body: z.string().optional().describe("The full email body in HTML format with <p> tags for paragraphs. Use <p><br></p> between paragraphs for spacing. Example: <p>First paragraph</p><p><br></p><p>Second paragraph</p><p><br></p><p>Third paragraph</p>"),
+        }),
+        strict: true,
+        execute: async () => "Email content has been set in the compose form.",
+      });
+
+      const setRecipientsTool = tool({
+        name: "set_recipients",
+        description: "Set the email recipients including To, CC, and BCC.",
+        parameters: z.object({
+          to: z.string().optional().describe("Primary recipient email address(es), comma-separated"),
+          cc: z.string().optional().describe("CC recipient email address(es), comma-separated"),
+          bcc: z.string().optional().describe("BCC recipient email address(es), comma-separated"),
+        }),
+        strict: true,
+        execute: async () => "Recipients have been set.",
+      });
+
+      const getUserInfoTool = tool({
+        name: "get_user_info",
+        description: "Get the current user's info (name, email, etc.).",
+        parameters: z.object({}),
+        strict: true,
+        execute: async () => {
+          if (user) return JSON.stringify({ name: user.name, email: user.email, roleId: user.roleId });
+          return "User info not available.";
+        },
+      });
 
       try {
-        const modelWithTools = model.bindTools(
-          TOOL_DEFS.map(td => ({
-            type: "function" as const,
-            function: { name: td.name, description: td.description, parameters: td.schema },
-          })),
-        );
+        const agent = new Agent({
+          name: "Assistant",
+          instructions: `You are an AI assistant for the IntelliLabs Email Operations Platform.
 
-        const first = await streamModel(modelWithTools, langchainMessages, encoder, controller);
+Available pages: ${PAGES.join(", ")}.
 
-        if (first.toolCalls?.length) {
-          const tc = first.toolCalls[0];
+${userInfoNote}
 
-          sse(encoder, controller, { type: "tool_call", name: tc.name, args: tc.args });
+You have tools to navigate pages, search/query data, and compose emails.
 
-          const toolResult = await executeTool(tc.name, JSON.stringify(tc.args));
+RULES:
+- If the user wants to go to a page, use the navigate tool.
+- If the user asks to find/list/search data, use search, get, or counts.
+- If the user wants to export, use the export tool.
+- If the user asks you to write or compose an email, use the set_email and set_recipients tools.
+- The current user info is available via get_user_info.
+- Remember conversation context.
+- Be concise and helpful.`,
+          model: "openai/gpt-5-nano",
+          modelSettings: {
+            reasoning: { effort: EFFORTS.includes(reasoningEffort as any) ? reasoningEffort : "medium" },
+          },
+          tools: [navigateTool, searchTool, getTool, getThreadTool, countsTool, exportTool, setEmailTool, setRecipientsTool, getUserInfoTool],
+        });
 
-          const resultMessages = [
-            ...langchainMessages,
-            first.message,
-            new ToolMessage({ tool_call_id: tc.id!, content: toolResult }),
-          ];
+        const result = await runner.run(agent, messages, { stream: true });
+        const eventStream = result.toStream().getReader();
 
-          const second = await streamModel(model, resultMessages, encoder, controller);
-          const reasoning = first.reasoning || second.reasoning;
-          const toolCallsResult = [{ name: tc.name, args: JSON.stringify(tc.args), result: toolResult.slice(0, 500) }];
+        let reasoning = "";
+        let content = "";
+        let toolCallsEmitted: any[] = [];
 
-          if (tc.name === "navigate") {
-            sse(encoder, controller, { type: "result", reply: second.content, reasoning, toolCall: { tool: "navigate", args: tc.args }, toolCalls: toolCallsResult });
-          } else if (tc.name === "export") {
-            let csv = "";
-            try { const r = JSON.parse(toolResult); csv = r.csv || ""; } catch {}
-            sse(encoder, controller, { type: "result", reply: second.content, reasoning, toolCalls: toolCallsResult, csv });
-          } else {
-            sse(encoder, controller, { type: "result", reply: second.content, reasoning, toolCalls: toolCallsResult });
+        while (true) {
+          const { done, value: event } = await eventStream.read();
+          if (done) break;
+
+          if (event.type === "run_item_stream_event") {
+            if (event.name === "reasoning_item_created") {
+              const raw = (event.item as any).rawItem?.rawContent ?? [];
+              for (const c of raw) {
+                if (c.type === "reasoning_text" && c.text) {
+                  reasoning += c.text;
+                  sse(encoder, controller, { type: "reasoning", content: c.text });
+                }
+              }
+            }
+            if (event.name === "tool_called") {
+              const tc = (event.item as any).rawItem;
+              if (tc?.type === "function_call") {
+                const args = tc.arguments ? JSON.parse(tc.arguments) : {};
+                toolCallsEmitted.push({ name: tc.name, args });
+                sse(encoder, controller, { type: "tool_call", name: tc.name, args });
+              }
+            }
+            // Capture full message text from created message event
+            if (event.name === "message_output_created") {
+              const item = event.item as any;
+              const text = item?.rawItem?.content?.[0]?.text;
+              if (text) {
+                content = text;
+                // If this text wasn't already streamed via deltas, send it now
+                sse(encoder, controller, { type: "text", content: text });
+              }
+            }
           }
+
+          if (event.type === "raw_model_stream_event") {
+            const rawData = (event as any).data;
+            if (rawData?.type === "response.output_text.delta" && rawData.delta) {
+              content += rawData.delta;
+              sse(encoder, controller, { type: "text", content: rawData.delta });
+            }
+            if (rawData?.type === "response.output_text.done" && rawData.text) {
+              // Use the complete text if available (may be more reliable than deltas)
+              content = rawData.text;
+            }
+          }
+        }
+
+        await result.completed;
+
+        const tcs = toolCallsEmitted.map((tc: any) => ({
+          name: tc.name,
+          args: typeof tc.args === "string" ? tc.args : JSON.stringify(tc.args),
+        }));
+
+        const navCall = tcs.find((tc: any) => tc.name === "navigate");
+        if (navCall) {
+          const navArgs = typeof navCall.args === "string" ? JSON.parse(navCall.args) : navCall.args;
+          sse(encoder, controller, { type: "result", reply: content || "Done.", reasoning, toolCall: { tool: "navigate", args: navArgs }, toolCalls: tcs });
+        } else if (tcs.some((tc: any) => tc.name === "export")) {
+          sse(encoder, controller, { type: "result", reply: content || "Done.", reasoning, toolCalls: tcs, csv: "" });
         } else {
-          sse(encoder, controller, { type: "result", reply: first.content, reasoning: first.reasoning, toolCalls: [] });
+          sse(encoder, controller, { type: "result", reply: content || "Done.", reasoning, toolCalls: tcs });
         }
       } catch (e: any) {
         sse(encoder, controller, { type: "error", message: e.message });
@@ -241,10 +337,6 @@ Rules:
   });
 
   return new Response(stream, {
-    headers: {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      Connection: "keep-alive",
-    },
+    headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" },
   });
 }

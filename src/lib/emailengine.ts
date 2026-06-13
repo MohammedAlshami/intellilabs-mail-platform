@@ -31,7 +31,7 @@ export interface SendMailParams {
   attachments?: { filename?: string; contentType?: string; content: string }[];
 }
 
-export interface SendMailResponse { queueId: string }
+export interface SendMailResponse { queueId: string; messageId?: string }
 
 export async function listMessages(account?: string, options?: { pageSize?: number; path?: string }): Promise<ListMessagesResponse> {
   const acct = account || DEFAULT_ACCOUNT;

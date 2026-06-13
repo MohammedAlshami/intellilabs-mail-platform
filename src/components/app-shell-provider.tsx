@@ -32,8 +32,8 @@ export function AppShellProvider({ children }: { children: React.ReactNode }) {
               <SidebarProvider>
                 <div className="flex h-dvh w-full">
                   <AppSidebar collapsed={collapsed} setCollapsed={handleSetCollapsed} />
-                  <SidebarInset className="flex flex-col overflow-y-auto">
-                    <div className="mx-auto w-full max-w-[1024px] px-6 pt-12 pb-24">{children}</div>
+                  <SidebarInset className="flex flex-col min-h-0">
+                    <div className="mx-auto w-full max-w-[1024px] px-6 pt-6 pb-12 flex-1 flex flex-col min-h-0">{children}</div>
                   </SidebarInset>
                   <AiChatPanel />
                 </div>

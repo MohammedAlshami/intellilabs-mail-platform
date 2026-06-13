@@ -35,6 +35,10 @@ yarn-error.log*
 .open-next/
 .wrangler/
 
+# gmail auth (credentials - DO NOT COMMIT)
+gmail-auth/credentials.json
+gmail-auth/token.pickle
+
 # sqlite
 data.db
 

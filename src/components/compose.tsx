@@ -25,6 +25,7 @@ interface ComposeProps {
   replyMode?: boolean
   inline?: boolean
   threadId?: string
+  onAiAssistantClick?: () => void
 }
 
 function ToolbarButton({ onClick, active, children, label }: { onClick?: () => void; active?: boolean; children: React.ReactNode; label: string }) {
@@ -41,7 +42,7 @@ function ToolbarButton({ onClick, active, children, label }: { onClick?: () => v
   )
 }
 
-export function Compose({ open, onOpenChange, onSend, initialTo, initialSubject, initialText, replyMode, inline, threadId }: ComposeProps) {
+export function Compose({ open, onOpenChange, onSend, initialTo, initialSubject, initialText, replyMode, inline, threadId, onAiAssistantClick }: ComposeProps) {
   const [recipients, setRecipients] = useState<string[]>(initialTo ? [initialTo] : [])
   const [recipientInput, setRecipientInput] = useState("")
   const [cc, setCc] = useState<string[]>([])
@@ -190,9 +191,9 @@ export function Compose({ open, onOpenChange, onSend, initialTo, initialSubject,
   const formContent = (
     <div className="flex min-h-0 flex-1 flex-col">
 
-      <div className="border-b border-slate-100 px-5 py-3">
-        <div className="flex items-start gap-3">
-          <span className="mt-1.5 text-sm text-slate-400">To:</span>
+      <div className="border-b border-slate-100 px-3 py-2">
+        <div className="flex items-start gap-2">
+          <span className="mt-1 text-xs text-slate-400">To:</span>
           <div className="flex flex-1 flex-wrap items-center gap-1.5">
             {recipients.map(email => (
               <span key={email} className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-sm font-medium text-slate-700">
@@ -212,7 +213,7 @@ export function Compose({ open, onOpenChange, onSend, initialTo, initialSubject,
               className="min-w-[140px] flex-1 bg-transparent py-1 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none"
             />
           </div>
-          <div className="flex items-center gap-2 shrink-0 mt-1">
+          <div className="flex items-center gap-1 shrink-0">
             <button type="button" onClick={() => setShowCc(!showCc)} className={`text-xs px-2 py-0.5 rounded transition-colors ${showCc ? "bg-slate-200 text-slate-700" : "text-slate-400 hover:text-slate-600"}`}>CC</button>
             <button type="button" onClick={() => setShowBcc(!showBcc)} className={`text-xs px-2 py-0.5 rounded transition-colors ${showBcc ? "bg-slate-200 text-slate-700" : "text-slate-400 hover:text-slate-600"}`}>BCC</button>
           </div>
@@ -247,8 +248,8 @@ export function Compose({ open, onOpenChange, onSend, initialTo, initialSubject,
         )}
       </div>
 
-      <div className="flex items-center gap-3 border-b border-slate-100 px-5 py-3">
-        <span className="text-sm text-slate-400">Subject:</span>
+      <div className="flex items-center gap-2 border-b border-slate-100 px-3 py-2">
+        <span className="text-xs text-slate-400">Subject:</span>
         <input
           type="text"
           value={subject}
@@ -258,14 +259,14 @@ export function Compose({ open, onOpenChange, onSend, initialTo, initialSubject,
         />
       </div>
 
-      <div className="px-5 py-4">
+      <div className="px-3 py-2">
         <EditorContent editor={editor} />
       </div>
       {signatureHtml && (
-        <div className="border-t border-slate-200 pt-3 mx-5 pb-3 text-sm text-slate-800 select-none" dangerouslySetInnerHTML={{ __html: "--<br>" + signatureHtml }} />
+        <div className="border-t border-slate-200 pt-1 mx-3 pb-1 text-xs text-slate-800 select-none" dangerouslySetInnerHTML={{ __html: "--<br>" + signatureHtml }} />
       )}
 
-      <div className="flex items-center justify-between px-4 py-3">
+      <div className="flex items-center justify-between px-3 py-2">
         <div className="flex items-center gap-1">
           <ToolbarButton label="Bold" active={editor.isActive("bold")} onClick={() => editor.chain().focus().toggleBold().run()}><Bold className="h-4 w-4" /></ToolbarButton>
           <ToolbarButton label="Italic" active={editor.isActive("italic")} onClick={() => editor.chain().focus().toggleItalic().run()}><Italic className="h-4 w-4" /></ToolbarButton>
@@ -278,16 +279,15 @@ export function Compose({ open, onOpenChange, onSend, initialTo, initialSubject,
           <ToolbarButton label="Attach file" onClick={() => fileInputRef.current?.click()}><Paperclip className="h-4 w-4" /></ToolbarButton>
           <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileSelect} />
           <div className="mx-1 h-5 w-px bg-slate-200" />
-          <ToolbarButton label="AI Write" onClick={() => setShowAiPanel(p => !p)}><Sparkles className="h-4 w-4" /></ToolbarButton>
+          <ToolbarButton label="AI Write" onClick={() => inline && onAiAssistantClick ? onAiAssistantClick() : setShowAiPanel(p => !p)}><Sparkles className="h-4 w-4" /></ToolbarButton>
         </div>
         <button
           type="button"
           onClick={handleSend}
           disabled={recipients.length === 0 || sending}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+          className="inline-flex items-center justify-center rounded-lg bg-black px-2.5 py-1.5 text-white transition-colors hover:bg-black/80 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
         >
           <Send className="h-4 w-4" />
-          {sending ? "Sending..." : "Send"}
         </button>
       </div>
 
@@ -327,7 +327,7 @@ export function Compose({ open, onOpenChange, onSend, initialTo, initialSubject,
     </div>
   )
 
-  if (inline) return <div className="border rounded-xl overflow-hidden">{formContent}</div>
+  if (inline) return <div className="border-t overflow-hidden">{formContent}</div>
 
   if (showAiPanel) {
     return (

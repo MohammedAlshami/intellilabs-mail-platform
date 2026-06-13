@@ -47,7 +47,7 @@ function SidebarContent_({ collapsed, setCollapsed }: { collapsed: boolean; setC
 
 export function AppSidebar({ collapsed, setCollapsed, ...props }: { collapsed: boolean; setCollapsed: (v: boolean) => void } & React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname(); const router = useRouter(); const [query, setQuery] = React.useState("");
-  const { mails, loading, setSelectedMail, folder, setFolder } = useMail(); const { toggle: toggleAi } = useAiPanel(); const [composeOpen, setComposeOpen] = React.useState(false);
+  const { mails, loading, selectedMail, setSelectedMail, folder, setFolder } = useMail(); const { toggle: toggleAi } = useAiPanel(); const [composeOpen, setComposeOpen] = React.useState(false);
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const filteredMails = React.useMemo(() => { const q = query.trim().toLowerCase(); if (!q) return mails; return mails.filter(m => [m.name, m.email, m.subject, m.teaser].join("\n").toLowerCase().includes(q)); }, [mails, query]);
   return (
@@ -85,7 +85,7 @@ export function AppSidebar({ collapsed, setCollapsed, ...props }: { collapsed: b
           <SidebarContent><SidebarGroup className="px-0 pt-0"><SidebarGroupContent>
             {loading && <div className="p-4 space-y-3">{[1,2,3,4,5].map(i => <div key={i} className="space-y-2 animate-pulse"><div className="h-4 w-3/4 rounded bg-muted" /><div className="h-3 w-1/2 rounded bg-muted" /><div className="h-3 w-full rounded bg-muted" /></div>)}</div>}
             {!loading && filteredMails.length === 0 && <div className="text-muted-foreground p-4 text-sm">No emails</div>}
-            {filteredMails.map(mail => <MailListItem key={mail.id} mail={mail} onSelect={() => { setSelectedMail(mail); window.history.replaceState(null, "", `/mail?id=${encodeURIComponent(mail.id)}`); }} />)}
+            {filteredMails.map(mail => <MailListItem key={mail.id} mail={mail} selected={selectedMail?.id === mail.id} onSelect={() => { setSelectedMail(mail); window.history.replaceState(null, "", `/mail?id=${encodeURIComponent(mail.id)}`); }} />)}
           </SidebarGroupContent></SidebarGroup></SidebarContent>
         </Sidebar>
         </div>
@@ -94,12 +94,12 @@ export function AppSidebar({ collapsed, setCollapsed, ...props }: { collapsed: b
   );
 }
 
-function MailListItem({ mail, onSelect }: { mail: Mail; onSelect: () => void }) {
+function MailListItem({ mail, onSelect, selected }: { mail: Mail; onSelect: () => void; selected?: boolean }) {
   return (
     <div className="group relative border-b">
-      <a href="#" onClick={(e) => { e.preventDefault(); onSelect(); }} className="hover:bg-sidebar-accent hover:text-sidebar-accent-foreground flex flex-col items-start gap-2 p-4 text-sm leading-tight whitespace-nowrap">
+      <a href="#" onClick={(e) => { e.preventDefault(); onSelect(); }} className={`flex flex-col items-start gap-2 p-4 text-sm leading-tight whitespace-nowrap ${selected ? 'bg-sidebar-accent text-sidebar-accent-foreground' : 'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'}`}>
         <div className="flex w-full items-center gap-2">
-          <span className="truncate">{mail.name}</span>
+          <span className="truncate">{mail.name} <span className="text-xs text-muted-foreground">{mail.email}</span></span>
           {mail.hasAttachments && <Paperclip className="h-3 w-3 shrink-0 text-muted-foreground" />}
           <span className="ml-auto shrink-0" onClick={(e) => e.stopPropagation()}>
             <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-6 w-6"><MoreVertical className="h-3.5 w-3.5" /></Button></DropdownMenuTrigger>

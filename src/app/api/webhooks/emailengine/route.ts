@@ -6,13 +6,26 @@ async function fetchEmailContent(account: string, messageId: string) {
     const r = await fetch(`${V1_URL}/account/${encodeURIComponent(account)}/message/${encodeURIComponent(messageId)}`, { headers: { Authorization: `Bearer ${EE_TOKEN}` } });
     if (!r.ok) return null; const msg = await r.json();
     let text = "", html = "";
-    if (msg.text?.id) { const tr = await fetch(`${V1_URL}/account/${encodeURIComponent(account)}/text/${encodeURIComponent(msg.text.id)}`, { headers: { Authorization: `Bearer ${EE_TOKEN}` } }); if (tr.ok) { const td = await tr.json(); text = td.plain || ""; html = td.html || ""; } }
-    return { text, html, from: msg.from || { address: "" }, to: msg.to || [], cc: msg.cc || [], bcc: msg.bcc || [], subject: msg.subject || "", attachments: msg.attachments || [], messageId: msg.messageId || "", inReplyTo: msg.inReplyTo || msg.headers?.["in-reply-to"]?.[0] || "", references: msg.references || msg.headers?.references?.[0] || "", date: msg.date || new Date().toISOString(), unseen: msg.unseen !== false, headers: msg.headers || {} };
+    if (msg.text?.id) { 
+      const textUrl = `${V1_URL}/account/${encodeURIComponent(account)}/text/${encodeURIComponent(msg.text.id)}`;
+      const tr = await fetch(textUrl, { headers: { Authorization: `Bearer ${EE_TOKEN}` } }); 
+      if (tr.ok) { 
+        const td = await tr.json(); 
+        text = td.plain || ""; 
+        html = typeof td.html === "string" ? td.html : ""; 
+        console.log("TEXT_FETCH_OK");
+      } else {
+        console.log("TEXT_FETCH_FAIL");
+      }
+    }
+    const htmlStr = typeof html === "string" ? html : "";
+    const textStr = typeof text === "string" ? text : "";
+    return { text: textStr, html: htmlStr, from: msg.from || { address: "" }, to: msg.to || [], cc: msg.cc || [], bcc: msg.bcc || [], subject: msg.subject || "", attachments: msg.attachments || [], messageId: msg.messageId || "", inReplyTo: msg.inReplyTo || msg.headers?.["in-reply-to"]?.[0] || "", references: msg.references || msg.headers?.references?.[0] || "", date: msg.date || new Date().toISOString(), unseen: msg.unseen !== false, headers: msg.headers || {} };
   } catch { return null; }
 }
 
-async function downloadAttachment(account: string, attId: string, fn: string): Promise<string | null> {
-  try { const r = await fetch(`${V1_URL}/account/${encodeURIComponent(account)}/attachment/${encodeURIComponent(attId)}`, { headers: { Authorization: `Bearer ${EE_TOKEN}` } }); if (!r.ok) return null; const buf = Buffer.from(await r.arrayBuffer()); const sn = `${uuidv4()}_${fn.replace(/[^a-zA-Z0-9._-]/g, "_")}`; const fp = join(UPLOADS_DIR, sn); await mkdir(UPLOADS_DIR, { recursive: true }); await writeFile(fp, buf); return `/uploads/${sn}`; } catch { return null; }
+async function downloadAttachment(account: string, attId: string, fn: string): Promise<{ path: string; size: number } | null> {
+  try { const r = await fetch(`${V1_URL}/account/${encodeURIComponent(account)}/attachment/${encodeURIComponent(attId)}`, { headers: { Authorization: `Bearer ${EE_TOKEN}` } }); if (!r.ok) return null; const buf = Buffer.from(await r.arrayBuffer()); const sn = `${uuidv4()}_${fn.replace(/[^a-zA-Z0-9._-]/g, "_")}`; const fp = join(UPLOADS_DIR, sn); await mkdir(UPLOADS_DIR, { recursive: true }); await writeFile(fp, buf); return { path: `/uploads/${sn}`, size: buf.length }; } catch { return null; }
 }
 
 async function runAiAnalysis(eid: string, subj: string, text: string, from: string) {
@@ -46,22 +59,38 @@ export async function POST(req: NextRequest) {
       let content;
       // If inline content provided, use it directly
       if (msgData.from || msgData.subject) {
-        content = { text: msgData.text || msgData.bodyText || "", html: msgData.html || msgData.bodyHtml || "", from: typeof msgData.from === "object" ? msgData.from : { name: "", address: msgData.from || "" }, to: Array.isArray(msgData.to) ? msgData.to : typeof msgData.to === "string" ? [{ address: msgData.to }] : [], cc: msgData.cc || [], bcc: msgData.bcc || [], subject: msgData.subject || "", attachments: msgData.attachments || [], messageId: msgData.messageId || messageId, inReplyTo: msgData.inReplyTo || "", references: msgData.references || "", date: msgData.date || new Date().toISOString(), unseen: msgData.unseen !== false, headers: msgData.headers || {} };
+        // Fetch text content if msgData.text is an object with id (not the actual text)
+        let textContent = "", htmlContent = "";
+        if (typeof msgData.text === "string") {
+          textContent = msgData.text;
+        } else if (msgData.text?.id) {
+          try {
+            const tr = await fetch(`${V1_URL}/account/${encodeURIComponent(account)}/text/${encodeURIComponent(msgData.text.id)}`, { headers: { Authorization: `Bearer ${EE_TOKEN}` } });
+            if (tr.ok) { const td = await tr.json(); textContent = td.plain || ""; htmlContent = td.html || ""; }
+          } catch {}
+        } else {
+          textContent = msgData.bodyText || "";
+        }
+        if (!htmlContent && typeof msgData.html === "string") htmlContent = msgData.html;
+        content = { text: textContent, html: htmlContent, from: typeof msgData.from === "object" ? msgData.from : { name: "", address: msgData.from || "" }, to: Array.isArray(msgData.to) ? msgData.to : typeof msgData.to === "string" ? [{ address: msgData.to }] : [], cc: msgData.cc || [], bcc: msgData.bcc || [], subject: msgData.subject || "", attachments: msgData.attachments || [], messageId: msgData.messageId || messageId, inReplyTo: msgData.inReplyTo || "", references: msgData.references || "", date: msgData.date || new Date().toISOString(), unseen: msgData.unseen !== false, headers: msgData.headers || {} };
       } else {
         content = await fetchEmailContent(account, messageId);
       }
       if (!content) return NextResponse.json({ ok: true });
-      console.log("MSG NEW:", account, msgData.path, content.subject);
+      console.log("MSG NEW:", account, msgData.path, content.subject, "textType:", typeof content.text, "htmlType:", typeof content.html);
       const db = await getDb(); const emailId = uuidv4(); const now = new Date().toISOString();
       const existing = await db.select().from(emails).where(eq(emails.emailengineId, messageId)).limit(1);
       if (existing.length > 0) return NextResponse.json({ ok: true });
       const existingThreadId = content.threadId || msgData.threadId || null;
-      const threadId = existingThreadId || await ensureThread(db, content.subject, content.inReplyTo, content.from.address, content.to?.[0]?.address || "", content.date);
+      const threadId = existingThreadId || await ensureThread(db, content.subject, content.inReplyTo, content.from.address, content.to?.[0]?.address || "", content.date) || uuidv4();
       const path = body.path || msgData.path || "INBOX";
       const dbFolder = path === "Sent" || path === "\\Sent" ? "SENT" : "INBOX";
       const direction = dbFolder === "SENT" ? "outbound" : "inbound";
-      await db.insert(emails).values({ id: emailId, messageId: content.messageId, emailengineId: messageId, account, fromName: content.from.name || "", fromEmail: content.from.address, toEmail: content.to.map(t => t.address).join(", "), cc: content.cc.map(c => c.address).join(", "), bcc: content.bcc.map(b => b.address).join(", "), subject: content.subject, bodyText: content.text, bodyHtml: content.html, folder: dbFolder, threadId, inReplyTo: content.inReplyTo, references: content.references, seen: !content.unseen, hasAttachments: content.attachments.length > 0, direction, receivedAt: content.date, createdAt: now, updatedAt: now });
-      for (const att of content.attachments) { const lp = await downloadAttachment(account, att.id, att.filename || "attachment"); await db.insert(emailAttachments).values({ id: uuidv4(), emailId, filename: att.filename || "", contentType: att.contentType || "", size: att.size || 0, emailengineAttachmentId: att.id, localPath: lp || "", createdAt: now }); }
+      const toList = Array.isArray(content.to) ? content.to : (typeof content.to === "string" ? [{ address: content.to }] : []);
+      const ccList = Array.isArray(content.cc) ? content.cc : [];
+      const bccList = Array.isArray(content.bcc) ? content.bcc : [];
+      await db.insert(emails).values({ id: emailId, messageId: content.messageId || "", emailengineId: messageId, account: account || "ahmad", fromName: content.from?.name || "", fromEmail: content.from?.address || "", toEmail: toList.map(t => t.address).join(", "), cc: ccList.map(c => c.address).join(", "), bcc: bccList.map(b => b.address).join(", "), subject: content.subject || "", bodyText: typeof content.text === "string" ? content.text : "", bodyHtml: typeof content.html === "string" ? content.html : "", folder: dbFolder, threadId: threadId || "", inReplyTo: content.inReplyTo || "", references: content.references || "", seen: !content.unseen, hasAttachments: !!(content.attachments?.length), direction: direction || "inbound", receivedAt: content.date || now, createdAt: now, updatedAt: now });
+      for (const att of content.attachments) { const dl = await downloadAttachment(account, att.id, att.filename || "attachment"); await db.insert(emailAttachments).values({ id: uuidv4(), emailId, filename: att.filename || "", contentType: att.contentType || "", size: dl?.size || att.size || 0, emailengineAttachmentId: att.id, localPath: dl?.path || "", createdAt: now }); }
       await db.insert(auditLogs).values({ id: uuidv4(), action: "email_received", entityType: "email", entityId: emailId, details: `Email received from ${content.from.address}: ${content.subject}`, createdAt: now });
       const classification = detectAutoReply(content.subject, content.text, content.headers);
       if (classification !== "genuine") {
@@ -81,5 +110,5 @@ export async function POST(req: NextRequest) {
       }
     }
     return NextResponse.json({ ok: true });
-  } catch (err) { console.error("Webhook handler error:", err); return NextResponse.json({ ok: true }); }
+  } catch (err) { console.error("Webhook handler error:", err, (err as any)?.stack); return NextResponse.json({ ok: true }); }
 }

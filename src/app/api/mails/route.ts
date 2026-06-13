@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server"; import { getDb } from "@/db"; import { emails } from "@/db/schema"; import { eq, desc, and } from "drizzle-orm"; import { DEFAULT_ACCOUNT } from "@/lib/emailengine";
+import { NextRequest, NextResponse } from "next/server"; import { getDb } from "@/db"; import { emails, emailAttachments } from "@/db/schema"; import { eq, asc, desc, and } from "drizzle-orm"; import { DEFAULT_ACCOUNT } from "@/lib/emailengine";
 
 const FOLDER_MAP: Record<string, string> = { "INBOX": "INBOX", "\\Sent": "SENT", "\\Drafts": "DRAFTS", "\\Trash": "TRASH", "\\Archive": "ARCHIVE", "SENT": "SENT", "DRAFTS": "DRAFTS", "TRASH": "TRASH", "ARCHIVE": "ARCHIVE" };
 
@@ -13,9 +13,15 @@ export async function GET(req: NextRequest) {
 
     // If threadId is provided, return all messages in that thread
     if (threadId) {
-      const rows = await db.select().from(emails).where(and(eq(emails.threadId, threadId), eq(emails.account, account))).orderBy(desc(emails.receivedAt));
+      const rows = await db.select().from(emails).where(and(eq(emails.threadId, threadId), eq(emails.account, account))).orderBy(asc(emails.receivedAt));
+      const allAttachments = await db.select().from(emailAttachments);
+      const attsByEmail = new Map<string, any[]>();
+      for (const a of allAttachments) {
+        if (!attsByEmail.has(a.emailId)) attsByEmail.set(a.emailId, []);
+        attsByEmail.get(a.emailId)!.push({ attachmentId: a.id, filename: a.filename, contentType: a.contentType, size: a.size });
+      }
       const messages = rows.map(msg => ({
-        id: msg.id, threadId: msg.threadId, from: { name: msg.fromName || msg.fromEmail, email: msg.fromEmail }, to: msg.toEmail, cc: msg.cc, bcc: msg.bcc, subject: msg.subject, text: msg.bodyText || msg.bodyHtml || "", date: msg.receivedAt, read: msg.seen,
+        id: msg.id, threadId: msg.threadId, from: { name: msg.fromName || msg.fromEmail, email: msg.fromEmail }, to: msg.toEmail, cc: msg.cc, bcc: msg.bcc, subject: msg.subject, text: msg.bodyText || msg.bodyHtml || "", date: msg.receivedAt, read: msg.seen, attachments: attsByEmail.get(msg.id) || [],
       }));
       return NextResponse.json({ messages });
     }

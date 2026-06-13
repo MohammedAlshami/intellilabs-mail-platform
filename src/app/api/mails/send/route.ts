@@ -5,17 +5,22 @@ function findAccount(email: string): string | null { for (const [acct, e] of Obj
 export async function POST(req: NextRequest) {
   const { allowed, response } = await requirePermission(req, "mail", "create");
   if (!allowed) return response;
-  const { to, subject, text, attachments, account, threadId } = await req.json();
+  const { to, subject, text, attachments, account, threadId, inReplyTo, references, cc, bcc } = await req.json();
   if (!to || !subject || !text) return NextResponse.json({ error: "Missing required fields: to, subject, text" }, { status: 400 });
   const fromAccount = account || DEFAULT_ACCOUNT;
   const fromEmail = getAccountEmail(fromAccount);
   try {
     const sendParams: Record<string, unknown> = { from: { address: fromEmail }, to: [{ address: to }], subject, text };
+    const customHeaders: Record<string, string> = {};
+    if (inReplyTo) customHeaders["In-Reply-To"] = inReplyTo;
+    if (references) customHeaders.References = references;
+    if (Object.keys(customHeaders).length > 0) sendParams.headers = customHeaders;
     if (attachments?.length > 0) sendParams.attachments = attachments.map((a: { name?: string; contentType?: string; content: string }) => ({ filename: a.name, contentType: a.contentType, content: a.content }));
     let queueId = "local";
-    try { const result = await sendMail(sendParams as any); queueId = result.queueId; } catch {}
+    let actualMessageId = "";
+    try { const result = await sendMail(sendParams as any); queueId = result.queueId; actualMessageId = result.messageId || ""; } catch {}
     const db = await getDb(); const now = new Date().toISOString();
-    const sentId = uuidv4();
+    const sentId = actualMessageId || uuidv4();
     const tid = threadId || sentId;
     await db.insert(emails).values({
       id: sentId, account: fromAccount, messageId: sentId,

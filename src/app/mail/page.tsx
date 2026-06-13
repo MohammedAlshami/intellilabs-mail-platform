@@ -1,11 +1,12 @@
 "use client";
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useState, useCallback, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Paperclip, Download, Sparkles, ThumbsUp, ThumbsDown, Minus, Send, X, Check } from "lucide-react";
 import MainLayout from "@/components/main-layout";
 import { useMail, type Mail, type Attachment } from "@/components/sidebar-04/mail-context";
 import { Compose } from "@/components/compose";
 import { Button } from "@/components/ui/button";
+import { useAiPanel } from "@/contexts/ai-panel-context";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
@@ -72,8 +73,10 @@ function SentimentCard({ analysis }: { analysis: { sentiment: string; reasoning:
   );
 }
 
-function MailPreview() {
+function MailPreview({ onSend, onAiAssistantClick }: { onSend?: () => void; onAiAssistantClick?: () => void }) {
   const { selectedMail, setSelectedMail, analysis, setAnalysis } = useMail();
+  const { composeData, clearComposeData } = useAiPanel();
+  const [aiComposeData, setAiComposeData] = useState<{ to: string; subject: string; text: string; threadId?: string } | null>(null);
   const [previewAtt, setPreviewAtt] = useState<Attachment | null>(null);
   const [replyOpen, setReplyOpen] = useState(false);
   const [usingAiReply, setUsingAiReply] = useState(false);
@@ -91,8 +94,9 @@ function MailPreview() {
         fetch(`/api/mails?threadId=${encodeURIComponent(selectedMail.threadId)}`).then(r => r.json()).then(d => {
           const msgs = d.messages || [];
           if (msgs.length > 0) {
-            const latest = msgs[0];
-            setSelectedMail({ ...selectedMail, text: latest.text, threadMessages: msgs, email: latest.from?.email || selectedMail.email, name: latest.from?.name || selectedMail.name });
+            const latest = msgs[msgs.length - 1];
+            const allAttachments = msgs.flatMap((m: any) => m.attachments || []);
+            setSelectedMail({ ...selectedMail, text: latest.text, threadMessages: msgs, email: latest.from?.email || selectedMail.email, name: latest.from?.name || selectedMail.name, attachments: allAttachments.length > 0 ? allAttachments : selectedMail.attachments });
           }
         }).catch(console.error).finally(() => setLoadingContent(false));
       } else {
@@ -106,13 +110,27 @@ function MailPreview() {
     }
   }, [selectedMail?.id]);
 
+  // When AI generates compose data, open reply with it
+  useEffect(() => {
+    if (composeData && selectedMail) {
+      setAiComposeData({
+        to: selectedMail.email,
+        subject: composeData.subject || `Re: ${selectedMail.subject}`,
+        text: composeData.body || "",
+        threadId: composeData.threadId || selectedMail.threadId || undefined,
+      });
+      setReplyOpen(true);
+      clearComposeData();
+    }
+  }, [composeData, selectedMail]);
+
   if (!selectedMail) return <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Select an email to preview</div>;
   const mailAnalysis = selectedMail.id ? analysis[selectedMail.id] : null;
   const handleUseAiReply = () => { setUsingAiReply(true); setShowAiDialog(false); setReplyOpen(true); };
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="border-b p-4">
+    <div className="flex flex-col min-h-0 flex-1">
+      <div className="border-b p-4 shrink-0">
         {loadingContent ? (
           <><Skeleton className="h-6 w-3/4 mb-2" /><Skeleton className="h-4 w-1/2 mb-1" /><Skeleton className="h-4 w-1/3" /></>
         ) : (
@@ -124,34 +142,35 @@ function MailPreview() {
           </div></>
         )}
       </div>
-      <div className="flex-1 overflow-auto p-4">
+      <div className="flex-1 overflow-y-auto p-4">
         {loadingContent ? (
           <div className="rounded-lg border p-3 mb-3 space-y-2"><Skeleton className="h-4 w-1/3" /><Skeleton className="h-3 w-full" /><Skeleton className="h-3 w-3/4" /></div>
         ) : (
           <SentimentCard analysis={mailAnalysis} />
         )}
-        {selectedMail.attachments && selectedMail.attachments.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-4">
-            {selectedMail.attachments.map(att => (
-              <button key={att.attachmentId} onClick={() => setPreviewAtt(att)} className="inline-flex items-center gap-2 rounded-md border bg-muted/50 px-3 py-2 text-sm hover:bg-muted transition-colors">
-                <Paperclip className="h-4 w-4 shrink-0" />
-                <span className="truncate max-w-[200px]">{att.filename ?? "unnamed"}</span>
-                {att.size != null && <span className="text-xs text-muted-foreground shrink-0">{formatSize(att.size)}</span>}
-              </button>
-            ))}
-          </div>
-        )}
         {loadingContent ? (
           <div className="space-y-2"><Skeleton className="h-3 w-full" /><Skeleton className="h-3 w-full" /><Skeleton className="h-3 w-3/4" /><Skeleton className="h-3 w-1/2" /></div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-6 w-full">
             {(selectedMail.threadMessages && selectedMail.threadMessages.length > 0 ? selectedMail.threadMessages : [selectedMail]).map((msg: any, i: number) => (
               <div key={i} className={i > 0 ? "border-t pt-4" : ""}>
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-sm font-medium">{msg.from?.name || selectedMail.name}</span>
-                  <span className="text-xs text-muted-foreground">{msg.date ? new Date(msg.date).toLocaleString() : ""}</span>
+                  <span className="text-xs text-muted-foreground">{msg.from?.email || selectedMail.email}</span>
+                  <span className="text-xs text-muted-foreground ml-auto">{msg.date ? new Date(msg.date).toLocaleString() : ""}</span>
                 </div>
-                <div className="text-sm whitespace-pre-wrap">{msg.text || selectedMail.text || "No content"}</div>
+                <div className="text-sm whitespace-pre-wrap w-full">{msg.text || selectedMail.text || "No content"}</div>
+                {msg.attachments && msg.attachments.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    {msg.attachments.map((att: any) => (
+                      <button key={att.attachmentId} onClick={() => setPreviewAtt(att)} className="inline-flex items-center gap-2 rounded-md border bg-muted/50 px-3 py-2 text-sm hover:bg-muted transition-colors">
+                        <Paperclip className="h-4 w-4 shrink-0" />
+                        <span className="truncate max-w-[200px]">{att.filename ?? "unnamed"}</span>
+                        {att.size != null && <span className="text-xs text-muted-foreground shrink-0">{formatSize(att.size)}</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -184,12 +203,16 @@ function MailPreview() {
           </div>
         </DialogContent>
       </Dialog>
+      {!replyOpen && !mailAnalysis?.suggestedReply && <div className="border-t px-4 py-2"><Button variant="ghost" size="sm" onClick={() => setReplyOpen(true)} className="text-xs"><Send className="h-3.5 w-3.5 mr-1.5" />Reply</Button></div>}
       {replyOpen && (
-        <div className="border-t p-4">
-          <Compose open={true} onOpenChange={setReplyOpen} initialTo={selectedMail.email} initialSubject={`Re: ${selectedMail.subject}`} initialText={usingAiReply && mailAnalysis ? mailAnalysis.suggestedReply : undefined} replyMode inline threadId={selectedMail.threadId || undefined} />
+        <div className="border-t">
+          <div className="flex items-center justify-between px-5 pt-2 pb-0">
+            <span className="text-xs font-medium text-muted-foreground">Reply</span>
+            <button onClick={() => setReplyOpen(false)} className="text-muted-foreground hover:text-foreground p-1 rounded hover:bg-muted transition-colors"><X className="h-3.5 w-3.5" /></button>
+          </div>
+          <Compose open={true} onOpenChange={(open) => { setReplyOpen(open); if (!open) setAiComposeData(null); }} onSend={() => { setAiComposeData(null); onSend?.(); }} initialTo={aiComposeData?.to || selectedMail.email} initialSubject={aiComposeData?.subject || `Re: ${selectedMail.subject}`} initialText={aiComposeData?.text || (usingAiReply && mailAnalysis ? mailAnalysis.suggestedReply : undefined)} replyMode inline threadId={aiComposeData?.threadId || selectedMail.threadId || undefined} onAiAssistantClick={onAiAssistantClick} />
         </div>
       )}
-      {!replyOpen && !mailAnalysis?.suggestedReply && <div className="border-t px-4 py-2"><Button variant="ghost" size="sm" onClick={() => setReplyOpen(true)} className="text-xs"><Send className="h-3.5 w-3.5 mr-1.5" />Reply</Button></div>}
       {previewAtt && <AttachmentPreview attachment={previewAtt} messageId={selectedMail.id} open={!!previewAtt} onOpenChange={open => { if (!open) setPreviewAtt(null); }} />}
     </div>
   );
@@ -198,16 +221,56 @@ function MailPreview() {
 const FOLDER_API_PATH: Record<string, string> = { inbox: "INBOX", sent: "\\Sent", drafts: "\\Drafts", trash: "\\Trash", archive: "\\Archive" };
 
 function MailApp() {
-  const { setMails, setLoading, folder, setSelectedMail, mails } = useMail();
+  const { setMails, setLoading, folder, setSelectedMail, selectedMail } = useMail();
   const searchParams = useSearchParams();
   const mailIdFromUrl = searchParams.get("id");
+  const initialLoad = useRef(true);
 
-  useEffect(() => {
-    setLoading(true);
+  const refreshMails = useCallback(() => {
     const path = FOLDER_API_PATH[folder] || "INBOX";
-    fetch(`/api/mails?path=${encodeURIComponent(path)}`).then(r => r.json()).then(d => { const items = d.threads || d.mails || []; const mapped = items.map((m: any) => ({ id: m.threadId || m.id, threadId: m.threadId || null, name: (m.from?.name || m.name || m.email || ""), email: (m.from?.email || m.email || ""), subject: m.subject, date: m.date, teaser: (m.preview || (m.text || "").substring(0, 300) || ""), labels: m.labels || [], hasAttachments: m.hasAttachments, messageCount: m.messageCount })); setMails(mapped); if (mailIdFromUrl) { const found = mapped.find(m => m.id === mailIdFromUrl); if (found) setSelectedMail(found); } }).catch(console.error).finally(() => setLoading(false));
-  }, [folder]);
-  return <MailPreview />;
+    fetch(`/api/mails?path=${encodeURIComponent(path)}`).then(r => r.json()).then(d => { const items = d.threads || d.mails || []; const mapped = items.map((m: any) => ({ id: m.threadId || m.id, threadId: m.threadId || null, name: (m.from?.name || m.name || m.email || ""), email: (m.from?.email || m.email || ""), subject: m.subject, date: m.date, teaser: (m.preview || (m.text || "").substring(0, 300) || ""), labels: m.labels || [], hasAttachments: m.hasAttachments, messageCount: m.messageCount })); setMails(mapped); }).catch(console.error);
+  }, [folder, setMails]);
+
+  // Initial load: fetch mails
+  useEffect(() => { refreshMails(); initialLoad.current = false; setLoading(false); }, []);
+
+  // If URL has a thread ID on initial load, directly fetch thread data
+  useEffect(() => {
+    if (!mailIdFromUrl) return;
+    fetch(`/api/mails?threadId=${encodeURIComponent(mailIdFromUrl)}`)
+      .then(r => r.json()).then(d => {
+        const msgs = d.messages || [];
+        if (msgs.length > 0) {
+          const latest = msgs[msgs.length - 1];
+          setSelectedMail({
+            id: mailIdFromUrl,
+            threadId: mailIdFromUrl,
+            name: latest.from?.name || "",
+            email: latest.from?.email || "",
+            subject: latest.subject || "",
+            date: latest.date || "",
+            teaser: (latest.text || "").substring(0, 300),
+            text: latest.text,
+            threadMessages: msgs,
+            messageCount: msgs.length,
+          });
+          // Also mark it in the URL even if it was already there
+          window.history.replaceState(null, "", `/mail?id=${encodeURIComponent(mailIdFromUrl)}`);
+        } else {
+          // Thread not found by ID - try matching as a regular mail ID
+          fetch(`/api/mails/${encodeURIComponent(mailIdFromUrl)}`).then(r => r.json()).then(m => {
+            if (m && !m.error) setSelectedMail({ id: mailIdFromUrl, threadId: m.threadId || null, name: m.from?.name || m.fromName || "", email: m.from?.email || m.fromEmail || "", subject: m.subject || "", date: m.receivedAt || "", teaser: (m.bodyText || "").substring(0, 300), text: m.bodyText || "", attachments: m.attachments, messageCount: 1 });
+          }).catch(() => {});
+        }
+      }).catch(console.error);
+  }, []);
+
+  // Refresh on folder change (no URL restore, no global loading spinner)
+  useEffect(() => { if (folder) refreshMails(); }, [folder]);
+
+  const { toggle: toggleAiPanel } = useAiPanel();
+
+  return <MailPreview onSend={() => { refreshMails(); if (selectedMail?.threadId) { fetch(`/api/mails?threadId=${encodeURIComponent(selectedMail.threadId)}`).then(r => r.json()).then(d => { const msgs = d.messages || []; if (msgs.length > 0) { const latest = msgs[msgs.length - 1]; setSelectedMail(prev => prev ? { ...prev, text: latest.text, threadMessages: msgs } : prev); } }); } }} onAiAssistantClick={toggleAiPanel} />;
 }
 
 export default function Page() { return <MainLayout><Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Loading...</div>}><MailApp /></Suspense></MainLayout>; }

@@ -1,18 +1,19 @@
 import { NextRequest } from "next/server";
-import { ChatOpenRouter } from "@langchain/openrouter";
-import { tool } from "langchain";
-import * as z from "zod";
+import { Agent, Runner, tool } from "@openai/agents";
+import { OpenAIProvider, setOpenAIAPI } from "@openai/agents-openai";
+import { z } from "zod";
 import { verifyToken } from "@/lib/auth";
 
-const EFFORTS = ["none", "minimal", "low", "medium", "high"] as const;
+setOpenAIAPI("chat_completions");
 
-function createModel(effort: string) {
-  return new ChatOpenRouter({
-    model: "openai/gpt-5-nano",
-    apiKey: process.env.OPENROUTER_API_KEY!,
-    modelKwargs: { reasoning: { effort: EFFORTS.includes(effort as any) ? effort : "low" } },
-  });
-}
+const provider = new OpenAIProvider({
+  baseURL: "https://openrouter.ai/api/v1",
+  apiKey: process.env.OPENROUTER_API_KEY!,
+});
+
+const runner = new Runner({ modelProvider: provider });
+
+const EFFORTS = ["none", "minimal", "low", "medium", "high"] as const;
 
 function sse(encoder: TextEncoder, controller: ReadableStreamDefaultController, data: any) {
   controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
@@ -30,53 +31,51 @@ export async function POST(req: NextRequest) {
   const stream = new ReadableStream({
     async start(controller) {
       const encoder = new TextEncoder();
-      const model = createModel(reasoningEffort ?? "low");
 
-      const setEmailTool = tool(
-        ({ subject, body }) => {
-          return "I've added the email subject and body. Let me know if you'd like to change anything.";
-        },
-        {
-          name: "set_email",
-          description: "Set the email subject and/or HTML body. Call this when drafting or updating an email.",
-          schema: z.object({
-            subject: z.string().optional().describe("The email subject line"),
-            body: z.string().optional().describe("The full email body in HTML format with proper <p> tags for paragraphs"),
-          }),
-        },
-      );
+      const setEmailTool = tool({
+        name: "set_email",
+        description: "Set the email subject and/or HTML body. Call this when drafting or updating an email.",
+        parameters: z.object({
+          subject: z.string().optional().describe("The email subject line"),
+          body: z.string().optional().describe("The full email body in HTML format with proper <p> tags for paragraphs"),
+        }),
+        strict: true,
+        execute: async () => "Email content captured.",
+      });
 
-      const setRecipientsTool = tool(
-        ({ to, cc, bcc }) => {
-          return `Recipients updated.`;
-        },
-        {
-          name: "set_recipients",
-          description: "Set the email recipients including To, CC, and BCC.",
-          schema: z.object({
-            to: z.string().optional().describe("Primary recipient email address(es), comma-separated"),
-            cc: z.string().optional().describe("CC recipient email address(es), comma-separated"),
-            bcc: z.string().optional().describe("BCC recipient email address(es), comma-separated"),
-          }),
-        },
-      );
+      const setRecipientsTool = tool({
+        name: "set_recipients",
+        description: "Set the email recipients including To, CC, and BCC.",
+        parameters: z.object({
+          to: z.string().optional().describe("Primary recipient email address(es), comma-separated"),
+          cc: z.string().optional().describe("CC recipient email address(es), comma-separated"),
+          bcc: z.string().optional().describe("BCC recipient email address(es), comma-separated"),
+        }),
+        strict: true,
+        execute: async () => "Recipients captured.",
+      });
 
-      const getUserInfoTool = tool(
-        () => {
-          if (user) return JSON.stringify({ name: user.name, email: user.email, roleId: user.roleId, permissions: user.permissions });
+      const getUserInfoTool = tool({
+        name: "get_user_info",
+        description: "Get the current user's info (name, email, etc.). Call this to personalize the email with the sender's name.",
+        parameters: z.object({}),
+        strict: true,
+        execute: async () => {
+          if (user) return JSON.stringify({ name: user.name, email: user.email, roleId: user.roleId });
           return "User info not available.";
         },
-        {
-          name: "get_user_info",
-          description: "Get the current user's info (name, email, etc.). Call this to personalize the email with the sender's name.",
-          schema: z.object({}),
-        },
-      );
+      });
+
+      const userInfoNote = user ? `The current user is ${user.name} (${user.email}).` : "";
 
       try {
-        const userInfoNote = user ? `The current user is ${user.name} (${user.email}).` : "";
-        const langchainMessages = messages.map((m: any) => {
-          if (m.role === "system") return { role: "system" as const, content: m.content + `\n\n${userInfoNote}\n\nFORMAT EXAMPLE:
+        const agent = new Agent({
+          name: "ComposeAssistant",
+          instructions: `You are an email composition assistant. Help users draft professional emails.
+
+${userInfoNote}
+
+FORMAT EXAMPLE:
 <p>Dear [Name],</p>
 <p><br></p>
 <p>I hope you're doing well...</p>
@@ -85,63 +84,67 @@ export async function POST(req: NextRequest) {
 
 RULES:
 1. Write proper, detailed, formal emails with a warm tone.
-2. Use the format above: each paragraph followed by <p><br></p> except the last.
-3. NEVER include any sign-off like "Best regards" or "Sincerely" or "[Your Name]" in the body.
+2. Use the format above: each paragraph followed by an empty paragraph <p><br></p> for spacing. After the last paragraph, do NOT add a trailing <p><br></p>.
+3. NEVER include any sign-off like "Best regards" or "Sincerely" or "[Your Name]" in the body. The signature is added separately.
 4. You can call get_user_info to get your name and email.
-5. After writing, ask if they'd like to modify anything.` };
-          return { role: "user" as const, content: m.content };
+5. After writing, ask if they'd like to modify anything.
+6. Use the set_email tool to fill in the compose form.
+7. Use the set_recipients tool to set recipient emails.`,
+          model: "openai/gpt-5-nano",
+          modelSettings: {
+            reasoning: { effort: EFFORTS.includes(reasoningEffort as any) ? reasoningEffort : "low" },
+          },
+          tools: [setEmailTool, setRecipientsTool, getUserInfoTool],
         });
 
-        const modelWithTools = model.bindTools([setEmailTool, setRecipientsTool, getUserInfoTool]);
-        const streamIter = await modelWithTools.stream(langchainMessages);
+        const result = await runner.run(agent, messages, { stream: true });
 
         let reasoning = "";
         let content = "";
-        let accumulated: any = null;
+        let allToolCalls: any[] = [];
 
-        for await (const chunk of streamIter) {
-          accumulated = accumulated ? accumulated.concat(chunk) : chunk;
-          const rc = (chunk.additional_kwargs as any)?.reasoning_content;
-          if (rc && typeof rc === "string") {
-            reasoning += rc;
-            sse(encoder, controller, { type: "reasoning", content: rc });
+        for await (const event of result) {
+          if (event.type === "run_item_stream_event") {
+            if (event.name === "reasoning_item_created") {
+              const raw = (event.item as any).rawItem?.rawContent ?? [];
+              for (const c of raw) {
+                if (c.type === "reasoning_text" && c.text) {
+                  reasoning += c.text;
+                  sse(encoder, controller, { type: "reasoning", content: c.text });
+                }
+              }
+            }
+            if (event.name === "tool_called") {
+              const tc = (event.item as any).rawItem;
+              if (tc?.type === "function_call") {
+                const args = tc.arguments ? JSON.parse(tc.arguments) : {};
+                if (tc.name === "set_email") {
+                  allToolCalls.push({ name: "set_subject", args: { subject: args.subject } });
+                  allToolCalls.push({ name: "set_body", args: { body: args.body } });
+                  sse(encoder, controller, { type: "tool_call", name: "set_subject", args: { subject: args.subject } });
+                  sse(encoder, controller, { type: "tool_call", name: "set_body", args: { body: args.body } });
+                }
+                if (tc.name === "set_recipients") {
+                  allToolCalls.push({ name: "set_recipients", args: { to: args.to, cc: args.cc, bcc: args.bcc } });
+                  sse(encoder, controller, { type: "tool_call", name: "set_recipients", args: { to: args.to, cc: args.cc, bcc: args.bcc } });
+                }
+              }
+            }
           }
-          if (chunk.content && !chunk.tool_call_chunks?.length) {
-            const text = typeof chunk.content === "string" ? chunk.content : "";
-            if (text) { content += text; sse(encoder, controller, { type: "text", content: text }); }
+
+          if (event.type === "raw_model_stream_event") {
+            const rawData = (event as any).data;
+            if (rawData?.type === "response.output_text.delta" && rawData.delta) {
+              content += rawData.delta;
+              sse(encoder, controller, { type: "text", content: rawData.delta });
+            }
           }
         }
 
-        const toolCalls = (accumulated as any)?.tool_calls;
-        if (toolCalls?.length) {
-          const allToolCalls: any[] = [];
-          let replyText = content || "I've added the email to the compose form. Let me know if you'd like to change anything.";
+        await result.completed;
 
-          for (const tc of toolCalls) {
-            if (tc.name === "set_email") {
-              allToolCalls.push({ name: "set_subject", args: { subject: tc.args.subject } });
-              allToolCalls.push({ name: "set_body", args: { body: tc.args.body } });
-              sse(encoder, controller, { type: "tool_call", name: "set_subject", args: { subject: tc.args.subject } });
-              sse(encoder, controller, { type: "tool_call", name: "set_body", args: { body: tc.args.body } });
-            }
-            if (tc.name === "set_recipients") {
-              allToolCalls.push({ name: "set_recipients", args: { to: tc.args.to, cc: tc.args.cc, bcc: tc.args.bcc } });
-              sse(encoder, controller, { type: "tool_call", name: "set_recipients", args: { to: tc.args.to, cc: tc.args.cc, bcc: tc.args.bcc } });
-            }
-
-            try {
-              if (tc.name === "set_email") await setEmailTool.invoke(tc.args);
-              if (tc.name === "set_recipients") await setRecipientsTool.invoke(tc.args);
-              if (tc.name === "get_user_info") await getUserInfoTool.invoke(tc.args || {});
-            } catch {}
-          }
-
-          sse(encoder, controller, { type: "result", reply: replyText, reasoning, toolCalls: allToolCalls });
-          controller.close();
-          return;
-        }
-
-        sse(encoder, controller, { type: "result", reply: content, reasoning, toolCalls: [] });
+        const replyText = content || (allToolCalls.length > 0 ? "I've added the email to the compose form. Let me know if you'd like to change anything." : "Let me know how I can help with your email.");
+        sse(encoder, controller, { type: "result", reply: replyText, reasoning, toolCalls: allToolCalls });
       } catch (e: any) {
         sse(encoder, controller, { type: "error", message: e.message });
       }
