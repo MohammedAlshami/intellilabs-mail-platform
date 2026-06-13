@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
     if (threadId) {
       const rows = await db.select().from(emails).where(and(eq(emails.threadId, threadId), eq(emails.account, account))).orderBy(desc(emails.receivedAt));
       const messages = rows.map(msg => ({
-        id: msg.id, threadId: msg.threadId, from: { name: msg.fromName || msg.fromEmail, email: msg.fromEmail }, to: msg.toEmail, subject: msg.subject, text: msg.bodyText || msg.bodyHtml || "", date: msg.receivedAt, read: msg.seen,
+        id: msg.id, threadId: msg.threadId, from: { name: msg.fromName || msg.fromEmail, email: msg.fromEmail }, to: msg.toEmail, cc: msg.cc, bcc: msg.bcc, subject: msg.subject, text: msg.bodyText || msg.bodyHtml || "", date: msg.receivedAt, read: msg.seen,
       }));
       return NextResponse.json({ messages });
     }

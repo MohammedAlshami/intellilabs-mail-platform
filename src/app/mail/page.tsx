@@ -85,15 +85,15 @@ function MailPreview() {
     if (!selectedMail?.id) return;
     const mid = selectedMail.id;
     if (!selectedMail.text) {
+      setLoadingContent(true);
       // If it has a threadId, fetch all messages in thread; otherwise fetch single email
       if (selectedMail.threadId) {
         fetch(`/api/mails?threadId=${encodeURIComponent(selectedMail.threadId)}`).then(r => r.json()).then(d => {
           const msgs = d.messages || [];
           if (msgs.length > 0) {
             const latest = msgs[0];
-            setSelectedMail({ ...selectedMail, text: latest.text, threadMessages: msgs });
+            setSelectedMail({ ...selectedMail, text: latest.text, threadMessages: msgs, email: latest.from?.email || selectedMail.email, name: latest.from?.name || selectedMail.name });
           }
-          setLoadingContent(false);
         }).catch(console.error).finally(() => setLoadingContent(false));
       } else {
         fetch(`/api/mails/${mid}`).then(r => r.json()).then(d => { if (d.error) return; setSelectedMail({ ...selectedMail, text: d.text, labels: d.labels, attachments: d.attachments }); }).catch(console.error).finally(() => setLoadingContent(false));
@@ -114,9 +114,14 @@ function MailPreview() {
     <div className="flex h-full flex-col">
       <div className="border-b p-4">
         {loadingContent ? (
-          <><Skeleton className="h-6 w-3/4 mb-2" /><Skeleton className="h-4 w-1/2" /></>
+          <><Skeleton className="h-6 w-3/4 mb-2" /><Skeleton className="h-4 w-1/2 mb-1" /><Skeleton className="h-4 w-1/3" /></>
         ) : (
-          <><div className="text-lg font-semibold">{selectedMail.subject}</div><div className="text-sm text-muted-foreground">From: {selectedMail.name} ({selectedMail.email})</div></>
+          <><div className="text-lg font-semibold">{selectedMail.subject}</div><div className="text-sm text-muted-foreground mt-1 space-y-0.5">
+            <div><span className="font-medium text-foreground/70">From:</span> {selectedMail.name} &lt;{selectedMail.email}&gt;</div>
+            {selectedMail.threadMessages?.[0]?.to && <div><span className="font-medium text-foreground/70">To:</span> {selectedMail.threadMessages[0].to}</div>}
+            {selectedMail.threadMessages?.[0]?.cc && <div><span className="font-medium text-foreground/70">CC:</span> {selectedMail.threadMessages[0].cc}</div>}
+            {selectedMail.threadMessages?.[0]?.bcc && <div><span className="font-medium text-foreground/70">BCC:</span> {selectedMail.threadMessages[0].bcc}</div>}
+          </div></>
         )}
       </div>
       <div className="flex-1 overflow-auto p-4">
