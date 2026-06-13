@@ -7,7 +7,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Button } from "@/components/ui/button"; import { cn } from "@/lib/utils";
 import { IconBrandAmongUs, IconMailbox } from "@tabler/icons-react";
 import { useMail, type FolderTab, type Mail } from "@/components/sidebar-04/mail-context";
-import { NavUser } from "@/components/sidebar-04/nav-user"; import { useAiPanel } from "@/contexts/ai-panel-context"; import { Compose } from "@/components/compose";
+import { NavUser } from "@/components/sidebar-04/nav-user"; import { useAiPanel } from "@/contexts/ai-panel-context"; import { Compose } from "@/components/compose"; import { useAuth } from "@/contexts/auth-context"; import { PATH_TO_PAGE } from "@/lib/permissions";
 
 const navGroups = [
   { label: "Overview", routes: [{ title: "Dashboard", icon: LayoutDashboard, path: "/dashboard" }, { title: "Reports", icon: BarChart3, path: "/reports" }] },
@@ -24,13 +24,18 @@ async function performAction(mailId: string, action: string) { try { await fetch
 function SidebarContent_({ collapsed, setCollapsed }: { collapsed: boolean; setCollapsed: (v: boolean) => void }) {
   const pathname = usePathname(); const router = useRouter();
   const { toggle: toggleAi } = useAiPanel();
+  const { can } = useAuth();
   const [user, setUser] = React.useState(defaultUser);
   React.useEffect(() => { fetch("/api/profile").then(r => r.json()).then(d => { if (d.name || d.email) setUser({ name: d.name || d.email, email: d.email, avatar: "" }); }).catch(() => {}); }, []);
+  const filteredGroups = navGroups.map(g => ({
+    ...g,
+    routes: g.routes.filter(r => can(PATH_TO_PAGE[r.path] || r.path.slice(1), "view")),
+  })).filter(g => g.routes.length > 0);
   return (
     <>
       <SidebarHeader><SidebarMenu><SidebarMenuItem><div className="flex items-center justify-between px-1.5 py-1">{!collapsed && <span className="text-xs font-semibold text-foreground uppercase tracking-wider">Menu</span>}<button onClick={() => setCollapsed(!collapsed)} className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors" title={collapsed ? "Expand sidebar" : "Collapse sidebar"}>{collapsed ? <PanelLeft className="size-4" /> : <PanelLeftClose className="size-4" />}</button></div></SidebarMenuItem></SidebarMenu></SidebarHeader>
       <SidebarContent>
-        {navGroups.map(g => (
+        {filteredGroups.map(g => (
           <SidebarGroup key={g.label}><SidebarGroupLabel className={`px-1.5 md:px-0 text-xs flex items-center justify-between ${collapsed ? 'justify-center' : ''}`}>{collapsed ? null : g.label}</SidebarGroupLabel>
             <SidebarGroupContent className="px-1.5 md:px-0"><SidebarMenu>{g.routes.map(r => (<SidebarMenuItem key={r.path}><SidebarMenuButton onClick={() => router.push(r.path)} isActive={pathname === r.path} className={`px-2.5 md:px-2 ${collapsed ? 'justify-center' : ''}`} title={collapsed ? r.title : undefined}><r.icon />{!collapsed && <span>{r.title}</span>}</SidebarMenuButton></SidebarMenuItem>))}</SidebarMenu></SidebarGroupContent></SidebarGroup>
         ))}

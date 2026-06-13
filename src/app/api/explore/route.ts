@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { ChatOpenAI } from "@langchain/openai";
 import { execSync } from "child_process";
+import { requirePermission } from "@/lib/api-auth";
 
 async function ddgrSearch(query: string, maxResults: number, region?: string): Promise<{ title: string; url: string; abstract: string }[]> {
   try {
@@ -175,6 +176,8 @@ Return ONLY a JSON array of { title, url, abstract } for matching results. Empty
 }
 
 export async function POST(req: NextRequest) {
+  const { allowed, response } = await requirePermission(req, "websites", "create");
+  if (!allowed) return response;
   const stream = new ReadableStream({
     start(controller) {
       eventStream(req, controller, () => {});

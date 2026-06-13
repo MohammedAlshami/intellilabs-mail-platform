@@ -1,8 +1,10 @@
-import { NextRequest, NextResponse } from "next/server"; import { sendMail, DEFAULT_ACCOUNT } from "@/lib/emailengine"; import { getDb } from "@/db"; import { emails } from "@/db/schema"; import { v4 as uuidv4 } from "uuid";
+import { NextRequest, NextResponse } from "next/server"; import { sendMail, DEFAULT_ACCOUNT } from "@/lib/emailengine"; import { getDb } from "@/db"; import { emails } from "@/db/schema"; import { v4 as uuidv4 } from "uuid"; import { requirePermission } from "@/lib/api-auth";
 const ACCOUNT_EMAILS: Record<string, string> = { ahmad: "ahmad@demo-project-mail.xyz", siti: "siti@demo-project-mail.xyz", ryan: "ryan@demo-project-mail.xyz", nurul: "nurul@demo-project-mail.xyz", david: "david@demo-project-mail.xyz" };
 function getAccountEmail(account?: string): string { if (account && ACCOUNT_EMAILS[account]) return ACCOUNT_EMAILS[account]; return ACCOUNT_EMAILS[DEFAULT_ACCOUNT] || `${DEFAULT_ACCOUNT}@demo-project-mail.xyz`; }
 function findAccount(email: string): string | null { for (const [acct, e] of Object.entries(ACCOUNT_EMAILS)) { if (e === email) return acct; } return null; }
 export async function POST(req: NextRequest) {
+  const { allowed, response } = await requirePermission(req, "mail", "create");
+  if (!allowed) return response;
   const { to, subject, text, attachments, account, threadId } = await req.json();
   if (!to || !subject || !text) return NextResponse.json({ error: "Missing required fields: to, subject, text" }, { status: 400 });
   const fromAccount = account || DEFAULT_ACCOUNT;

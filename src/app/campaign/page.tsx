@@ -6,6 +6,7 @@ import { IconCheck } from '@tabler/icons-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import MainLayout from '@/components/main-layout';
 import { RowActions } from '@/components/row-actions';
+import { Can } from '@/components/can';
 import { ExportDropdown } from '@/components/shared/export-dropdown';
 import { SearchBar } from '@/components/shared/search-bar';
 import { cn } from '@/lib/utils';
@@ -179,10 +180,10 @@ function CampaignPageInner() {
         <h1 className="text-[22px] font-normal text-gray-900 tracking-tight">Campaigns</h1>
         <div className="flex items-center gap-2">
           <SearchBar table="campaigns" placeholder="Search campaigns..." onResults={(data, total, q) => { setSearchResults(data as Campaign[]); setSearchQuery(q); setPage(0); }} onClear={() => { setSearchResults(null); setSearchQuery(""); setPage(0); }} />
-          <ExportDropdown data={displayCampaigns.map(c => ({ Name: c.name, Subject: c.subject, Recipients: c.recipients, Sent: c.sent, Bounced: c.bounced, Status: c.status }))} filename="campaigns" columnOrder={["Name", "Subject", "Recipients", "Sent", "Bounced", "Status"]} />
-          <Button size="sm" onClick={() => { resetForm(); setShowAdd(true); }}>
+          <Can page="campaigns" action="export"><ExportDropdown data={displayCampaigns.map(c => ({ Name: c.name, Subject: c.subject, Recipients: c.recipients, Sent: c.sent, Bounced: c.bounced, Status: c.status }))} filename="campaigns" columnOrder={["Name", "Subject", "Recipients", "Sent", "Bounced", "Status"]} /></Can>
+          <Can page="campaigns" action="create"><Button size="sm" onClick={() => { resetForm(); setShowAdd(true); }}>
             <Plus className="size-3.5" /> Add Campaign
-          </Button>
+          </Button></Can>
         </div>
       </div>
       <div className="bg-white border border-[#e9ecef] rounded-[10px] shadow-sm overflow-hidden">

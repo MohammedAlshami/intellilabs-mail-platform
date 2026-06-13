@@ -30,7 +30,7 @@ export default function Login03() {
         setError(data.error || "Login failed");
         return;
       }
-      router.push("/dashboard");
+      window.location.href = "/dashboard";
     } catch {
       setError("Network error");
     }

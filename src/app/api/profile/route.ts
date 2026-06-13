@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { getDb } from "@/db";
-import { users } from "@/db/schema";
+import { users, roles } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 export async function GET(req: NextRequest) {
@@ -11,7 +11,14 @@ export async function GET(req: NextRequest) {
   const [user] = await db.select().from(users).where(eq(users.id, userId));
   if (!user) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const { passwordHash, ...safe } = user;
-  return NextResponse.json(safe);
+  let permissions: Record<string, Record<string, boolean>> = {};
+  if (safe.roleId) {
+    const [role] = await db.select().from(roles).where(eq(roles.id, safe.roleId));
+    if (role) {
+      try { permissions = JSON.parse(role.permissions ?? "{}"); } catch {}
+    }
+  }
+  return NextResponse.json({ ...safe, permissions });
 }
 
 export async function PUT(req: NextRequest) {

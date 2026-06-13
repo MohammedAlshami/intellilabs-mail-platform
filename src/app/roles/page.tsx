@@ -9,26 +9,59 @@ import {
 } from '@/components/ui/sheet';
 import { ExportDropdown } from '@/components/shared/export-dropdown';
 import { Button } from '@/components/ui/button';
+import { Can } from '@/components/can';
 
-const ALL_PERMISSIONS = [
-  { id: 'view_dashboard', label: 'View Dashboard', category: 'Dashboard' },
-  { id: 'view_reports', label: 'View Reports', category: 'Reports' },
-  { id: 'view_campaigns', label: 'View Campaigns', category: 'Campaigns' },
-  { id: 'manage_campaigns', label: 'Manage Campaigns', category: 'Campaigns' },
-  { id: 'send_emails', label: 'Send Emails', category: 'Campaigns' },
-  { id: 'view_websites', label: 'View Websites', category: 'Websites' },
-  { id: 'manage_websites', label: 'Manage Websites', category: 'Websites' },
-  { id: 'view_leads', label: 'View Leads', category: 'Leads' },
-  { id: 'manage_leads', label: 'Manage Leads', category: 'Leads' },
-  { id: 'view_audit', label: 'View Audit Trail', category: 'Audit' },
-  { id: 'manage_removal_list', label: 'Manage Removal List', category: 'Removal' },
-  { id: 'export_data', label: 'Export Data', category: 'Data' },
-  { id: 'manage_users', label: 'Manage Users', category: 'Admin' },
-  { id: 'manage_roles', label: 'Manage Roles', category: 'Admin' },
-  { id: 'manage_settings', label: 'Manage Settings', category: 'Admin' },
-];
+const ALL_PAGES = [
+  "dashboard", "mail", "campaigns", "email-lists", "sending-history",
+  "bounce-monitor", "templates", "signatures", "websites", "leads",
+  "removal-list", "reports", "audit-trail", "roles", "users", "profile",
+] as const;
+
+const ALL_ACTIONS = ["view", "create", "edit", "delete", "export"] as const;
+
+type PagePerms = Record<string, Record<string, boolean>>;
+
+const PAGE_GROUPS: Record<string, string[]> = {
+  Overview: ["dashboard", "reports"],
+  Email: ["mail", "campaigns", "email-lists", "sending-history", "bounce-monitor", "templates", "signatures"],
+  Data: ["websites", "leads", "removal-list"],
+  Admin: ["audit-trail", "roles", "users", "profile"],
+};
+
+const PAGE_LABELS: Record<string, string> = {
+  dashboard: "Dashboard",
+  mail: "Mail",
+  campaigns: "Campaigns",
+  "email-lists": "Email Lists",
+  "sending-history": "Sending History",
+  "bounce-monitor": "Bounce Monitor",
+  templates: "Templates",
+  signatures: "Signatures",
+  websites: "Websites",
+  leads: "Leads",
+  "removal-list": "Removal List",
+  reports: "Reports",
+  "audit-trail": "Audit Trail",
+  roles: "Roles",
+  users: "Users",
+  profile: "Profile",
+};
 
 const PAGE_SIZE = 10;
+
+function parsePerms(raw: any): PagePerms {
+  if (typeof raw === "string") { try { return JSON.parse(raw); } catch { return {}; } }
+  if (raw && typeof raw === "object") return raw;
+  return {};
+}
+
+function emptyPerms(): PagePerms {
+  const p: PagePerms = {};
+  for (const page of ALL_PAGES) {
+    p[page] = Object.fromEntries(ALL_ACTIONS.map(a => [a, false]));
+  }
+  return p;
+}
 
 export default function RolesPage() {
   const [roles, setRoles] = useState<any[]>([]);
@@ -37,10 +70,9 @@ export default function RolesPage() {
   const [viewRole, setViewRole] = useState<any>(null);
   const [editRole, setEditRole] = useState<any>(null);
 
-  // Form state
   const [formName, setFormName] = useState('');
   const [formDesc, setFormDesc] = useState('');
-  const [formPerms, setFormPerms] = useState<string[]>([]);
+  const [formPerms, setFormPerms] = useState<PagePerms>(emptyPerms());
   const [formIsLeader, setFormIsLeader] = useState(false);
   const [formLeadsRoles, setFormLeadsRoles] = useState<string[]>([]);
 
@@ -55,11 +87,14 @@ export default function RolesPage() {
   const otherRoles = roles.filter(r => r.name !== formName);
 
   const resetForm = () => {
-    setFormName(''); setFormDesc(''); setFormPerms([]); setFormIsLeader(false); setFormLeadsRoles([]);
+    setFormName(''); setFormDesc(''); setFormPerms(emptyPerms()); setFormIsLeader(false); setFormLeadsRoles([]);
   };
 
-  const togglePerm = (permId: string) => {
-    setFormPerms(prev => prev.includes(permId) ? prev.filter(p => p !== permId) : [...prev, permId]);
+  const togglePageAction = (page: string, action: string) => {
+    setFormPerms(prev => ({
+      ...prev,
+      [page]: { ...prev[page], [action]: !prev[page]?.[action] },
+    }));
   };
 
   const handleAdd = async () => {
@@ -78,24 +113,25 @@ export default function RolesPage() {
     setEditRole(role);
     setFormName(role.name);
     setFormDesc(role.description || '');
-    const perms = typeof role.permissions === 'string' ? JSON.parse(role.permissions) : role.permissions;
-    setFormPerms(perms || []);
+    setFormPerms(parsePerms(role.permissions));
     setFormIsLeader(!!role.isLeader);
     const leads = typeof role.leadsRoles === 'string' ? JSON.parse(role.leadsRoles) : role.leadsRoles;
     setFormLeadsRoles(leads || []);
   };
-
-  const categories = [...new Set(ALL_PERMISSIONS.map(p => p.category))];
 
   return (
     <MainLayout>
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-[22px] font-normal text-gray-900 tracking-tight">Roles & Permissions</h1>
         <div className="flex items-center gap-2">
-          <ExportDropdown data={roles.map(r => ({ ...r, permissions: JSON.stringify(typeof r.permissions === 'string' ? JSON.parse(r.permissions) : r.permissions) }))} filename="roles" />
-          <Button size="sm" onClick={() => { resetForm(); setShowAdd(true); }}>
-            <Plus className="size-3.5" /> Create Role
-          </Button>
+          <Can page="roles" action="export">
+            <ExportDropdown data={roles.map(r => ({ ...r, permissions: JSON.stringify(parsePerms(r.permissions)) }))} filename="roles" />
+          </Can>
+          <Can page="roles" action="create">
+            <Button size="sm" onClick={() => { resetForm(); setShowAdd(true); }}>
+              <Plus className="size-3.5" /> Create Role
+            </Button>
+          </Can>
         </div>
       </div>
       <div className="bg-white border border-[#e9ecef] rounded-[10px] shadow-sm overflow-hidden">
@@ -115,19 +151,21 @@ export default function RolesPage() {
               <tr><td colSpan={6} className="py-8 text-center text-gray-400">No roles created yet.</td></tr>
             ) : (
               paged.map((role) => {
-                const perms = typeof role.permissions === 'string' ? JSON.parse(role.permissions) : role.permissions;
+                const perms = parsePerms(role.permissions);
                 const leads = typeof role.leadsRoles === 'string' ? JSON.parse(role.leadsRoles) : role.leadsRoles;
+                const totalGranted = Object.values(perms).reduce((sum: number, p: any) =>
+                  sum + Object.values(p).filter(Boolean).length, 0);
                 return (
                   <tr key={role.id} className="hover:bg-gray-50 transition">
                     <td className="py-3 px-5 text-gray-700 font-medium">{role.name}</td>
                     <td className="py-3 px-5 text-gray-500 max-w-[200px] truncate">{role.description || '—'}</td>
-                    <td className="py-3 px-5 text-gray-500">{perms?.length || 0} permissions</td>
+                    <td className="py-3 px-5 text-gray-500">{totalGranted} permissions</td>
                     <td className="py-3 px-5">{role.isLeader ? <span className="text-[11px] font-medium px-1.5 py-0.5 rounded border bg-purple-50 text-purple-600 border-purple-200">Leader</span> : '—'}</td>
                     <td className="py-3 px-5 text-gray-500">{leads?.length ? leads.join(', ') : '—'}</td>
                     <td className="py-3 px-5 text-right">
                       <RowActions actions={[
                         { label: 'View', onClick: () => setViewRole(role) },
-                        { label: 'Edit', onClick: () => openEdit(role) },
+                        { label: 'Edit', onClick: () => openEdit(role), permission: { page: 'roles', action: 'edit' } },
                       ]} />
                     </td>
                   </tr>
@@ -149,7 +187,7 @@ export default function RolesPage() {
 
       {/* View Sheet */}
       <Sheet open={!!viewRole} onOpenChange={(o) => { if (!o) setViewRole(null); }}>
-        <SheetContent side="right" className="sm:max-w-md">
+        <SheetContent side="right" className="sm:max-w-md overflow-y-auto">
           <SheetHeader><SheetTitle className="text-[16px] font-semibold text-[#111827]">Role Details</SheetTitle><SheetDescription className="text-[12px] text-gray-500">View role information</SheetDescription></SheetHeader>
           {viewRole && (
             <div className="px-4 space-y-4 text-[13px]">
@@ -157,10 +195,23 @@ export default function RolesPage() {
               <div><span className="text-gray-400 block text-[11px] uppercase tracking-wider">Description</span><span className="text-gray-700">{viewRole.description || '—'}</span></div>
               <div><span className="text-gray-400 block text-[11px] uppercase tracking-wider">Leader</span><span className="text-gray-700">{viewRole.isLeader ? 'Yes' : 'No'}</span></div>
               {viewRole.isLeader && <div><span className="text-gray-400 block text-[11px] uppercase tracking-wider">Leads Roles</span><span className="text-gray-700">{(typeof viewRole.leadsRoles === 'string' ? JSON.parse(viewRole.leadsRoles) : viewRole.leadsRoles).join(', ') || 'None'}</span></div>}
-              <div><span className="text-gray-400 block text-[11px] uppercase tracking-wider">Permissions ({ALL_PERMISSIONS.filter(p => (typeof viewRole.permissions === 'string' ? JSON.parse(viewRole.permissions) : viewRole.permissions).includes(p.id)).length})</span>
-                <div className="flex flex-wrap gap-1 mt-1">{ALL_PERMISSIONS.filter(p => (typeof viewRole.permissions === 'string' ? JSON.parse(viewRole.permissions) : viewRole.permissions).includes(p.id)).map(p => (
-                  <span key={p.id} className="text-[11px] font-medium px-1.5 py-0.5 rounded border bg-[#f3f4f6] text-[#6b7280] border-[#e5e7eb]">{p.label}</span>
-                ))}</div>
+              <div>
+                <span className="text-gray-400 block text-[11px] uppercase tracking-wider mb-2">Permissions</span>
+                {Object.entries(PAGE_GROUPS).map(([group, pages]) => (
+                  <div key={group} className="mb-3">
+                    <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1">{group}</div>
+                    {pages.filter(p => parsePerms(viewRole.permissions)[p] && Object.values(parsePerms(viewRole.permissions)[p]).some(Boolean)).map(page => {
+                      const pp = parsePerms(viewRole.permissions)[page] || {};
+                      const granted = ALL_ACTIONS.filter(a => pp[a]).join(", ");
+                      return (
+                        <div key={page} className="flex justify-between items-center py-1 border-b border-gray-50 last:border-0">
+                          <span className="text-gray-700">{PAGE_LABELS[page] || page}</span>
+                          <span className="text-[11px] text-gray-400">{granted}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
               </div>
             </div>
           )}
@@ -170,7 +221,7 @@ export default function RolesPage() {
 
       {/* Add/Edit Sheet */}
       <Sheet open={showAdd || !!editRole} onOpenChange={(o) => { if (!o) { setShowAdd(false); setEditRole(null); resetForm(); } }}>
-        <SheetContent side="right" className="sm:max-w-md overflow-y-auto">
+        <SheetContent side="right" className="sm:max-w-lg overflow-y-auto">
           <SheetHeader><SheetTitle className="text-[16px] font-semibold text-[#111827]">{editRole ? 'Edit Role' : 'Create Role'}</SheetTitle><SheetDescription className="text-[12px] text-gray-500">{editRole ? 'Update role permissions' : 'Define a new role with permissions'}</SheetDescription></SheetHeader>
           <div className="px-4 space-y-4">
             <div>
@@ -198,20 +249,43 @@ export default function RolesPage() {
               </div>
             )}
             <div className="border-t pt-4">
-              <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wider block mb-2">Permissions</label>
-              {categories.map(cat => (
-                <div key={cat} className="mb-3">
-                  <div className="text-[12px] font-semibold text-gray-700 mb-1">{cat}</div>
-                  <div className="space-y-1">
-                    {ALL_PERMISSIONS.filter(p => p.category === cat).map(p => (
-                      <label key={p.id} className="flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox" checked={formPerms.includes(p.id)} onChange={() => togglePerm(p.id)} className="rounded border-gray-300 text-[#111827] focus:ring-gray-300" />
-                        <span className="text-[13px] text-gray-700">{p.label}</span>
-                      </label>
+              <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wider block mb-3">Page Permissions</label>
+              <div className="overflow-x-auto">
+                <table className="w-full text-[12px] border-collapse">
+                  <thead>
+                    <tr className="border-b border-gray-200">
+                      <th className="py-1.5 pr-3 text-left text-gray-400 font-medium uppercase tracking-wider">Page</th>
+                      {ALL_ACTIONS.map(a => (
+                        <th key={a} className="py-1.5 px-2 text-center text-gray-400 font-medium uppercase tracking-wider">{a}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(PAGE_GROUPS).map(([group, pages]) => (
+                      <>
+                        <tr key={group} className="border-b border-gray-100">
+                          <td colSpan={6} className="pt-3 pb-1 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">{group}</td>
+                        </tr>
+                        {pages.map(page => (
+                          <tr key={page} className="border-b border-gray-50 hover:bg-gray-50/50">
+                            <td className="py-1.5 pr-3 text-gray-700">{PAGE_LABELS[page] || page}</td>
+                            {ALL_ACTIONS.map(a => (
+                              <td key={a} className="py-1.5 px-2 text-center">
+                                <input
+                                  type="checkbox"
+                                  checked={formPerms[page]?.[a] ?? false}
+                                  onChange={() => togglePageAction(page, a)}
+                                  className="rounded border-gray-300 text-[#111827] focus:ring-gray-300 cursor-pointer"
+                                />
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </>
                     ))}
-                  </div>
-                </div>
-              ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
             <div className="pt-2">
               <Button onClick={editRole ? handleEdit : handleAdd} disabled={!formName} className="w-full">

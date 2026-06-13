@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import MainLayout from '@/components/main-layout';
 import { ExportDropdown } from '@/components/shared/export-dropdown';
+import { Can } from '@/components/can';
 
 export default function DashboardPage() {
   const [stats, setStats] = useState({ websites: 0, emails: 0, flagged: 0, campaigns: 0, websitesByCategory: [] as { name: string; count: number }[] });
@@ -31,7 +32,9 @@ export default function DashboardPage() {
     <MainLayout>
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-[22px] font-normal text-gray-900 tracking-tight">Dashboard</h1>
-        <ExportDropdown data={[{ Type: 'Dashboard Summary', Websites: stats.websites, Leads: stats.emails, Campaigns: stats.campaigns, Flagged: stats.flagged }]} filename="dashboard" />
+        <Can page="dashboard" action="export">
+          <ExportDropdown data={[{ Type: 'Dashboard Summary', Websites: stats.websites, Leads: stats.emails, Campaigns: stats.campaigns, Flagged: stats.flagged }]} filename="dashboard" />
+        </Can>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Mail, Phone, ExternalLink } from 'lucide-react';
 import MainLayout from '@/components/main-layout';
 import { ExportDropdown } from '@/components/shared/export-dropdown';
+import { Can } from '@/components/can';
 
 type Lead = {
   id: string; websiteId: string; websiteName: string;
@@ -27,7 +28,7 @@ export default function LeadsPage() {
         <h1 className="text-[22px] font-normal text-gray-900 tracking-tight">Leads</h1>
         <div className="flex items-center gap-2">
           <span className="text-xs text-gray-400">{leads.length} total</span>
-          <ExportDropdown data={leads.map(l => ({ Type: l.type, Value: l.value, Source: l.websiteName, Date: new Date(l.createdAt).toLocaleDateString() }))} filename="leads" columnOrder={["Type", "Value", "Source", "Date"]} />
+          <Can page="leads" action="export"><ExportDropdown data={leads.map(l => ({ Type: l.type, Value: l.value, Source: l.websiteName, Date: new Date(l.createdAt).toLocaleDateString() }))} filename="leads" columnOrder={["Type", "Value", "Source", "Date"]} /></Can>
         </div>
       </div>
       <div className="bg-white border border-[#e9ecef] rounded-[10px] shadow-sm overflow-hidden">

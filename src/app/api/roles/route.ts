@@ -3,6 +3,7 @@ import { getDb } from "@/db";
 import { roles } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { ALL_PAGES, ALL_PERMISSIONS, type PagePermissions } from "@/lib/permissions";
+import { requirePermission } from "@/lib/api-auth";
 
 export async function GET() {
   const db = await getDb();
@@ -10,6 +11,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const { allowed, response } = await requirePermission(req, "roles", "create");
+  if (!allowed) return response;
   const db = await getDb();
   const { name, description, permissions, isLeader } = await req.json();
   const id = String(Date.now());
@@ -25,6 +28,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
+  const { allowed, response } = await requirePermission(req, "roles", "edit");
+  if (!allowed) return response;
   const db = await getDb();
   const { id, name, description, permissions, isLeader } = await req.json();
   const updates: Record<string, any> = {};
@@ -37,6 +42,8 @@ export async function PUT(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const { allowed, response } = await requirePermission(req, "roles", "delete");
+  if (!allowed) return response;
   const db = await getDb();
   const { id } = await req.json();
   await db.delete(roles).where(eq(roles.id, id));

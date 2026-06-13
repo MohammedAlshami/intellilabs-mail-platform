@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import MainLayout from '@/components/main-layout';
 import { ExportDropdown } from '@/components/shared/export-dropdown';
+import { Can } from '@/components/can';
 
 const PAGE_SIZE = 15;
 
@@ -22,7 +23,9 @@ export default function AuditTrailPage() {
     <MainLayout>
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-[22px] font-normal text-gray-900 tracking-tight">Audit Trail</h1>
-        <ExportDropdown data={logs} filename="audit-trail" />
+        <Can page="audit-trail" action="export">
+          <ExportDropdown data={logs} filename="audit-trail" />
+        </Can>
       </div>
       <div className="bg-white border border-[#e9ecef] rounded-[10px] shadow-sm overflow-hidden">
         <table className="w-full text-left border-collapse">

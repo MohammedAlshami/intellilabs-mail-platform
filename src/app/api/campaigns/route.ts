@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/db";
 import { campaigns, campaignRecipients } from "@/db/schema";
+import { requirePermission } from "@/lib/api-auth";
 
 export async function GET() {
   const db = await getDb();
@@ -9,6 +10,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const { allowed, response } = await requirePermission(req, "campaigns", "create");
+  if (!allowed) return response;
   const db = await getDb();
   const data = await req.json();
   const id = data.id || String(Date.now());

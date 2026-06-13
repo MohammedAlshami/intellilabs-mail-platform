@@ -6,6 +6,7 @@ import MainLayout from "@/components/main-layout"; import { Button } from "@/com
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter, SheetClose } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { RowActions } from "@/components/row-actions";
+import { Can } from "@/components/can";
 
 type Signature = { id: string; name: string; content: string; isDefault: boolean; createdAt: string }; const PAGE_SIZE = 10;
 
@@ -29,7 +30,7 @@ export default function Page() {
 
   return (
     <MainLayout>
-      <div className="flex items-center justify-between mb-8"><h1 className="text-[22px] font-normal text-gray-900 tracking-tight">Email Signatures</h1><Button size="sm" onClick={() => { resetForm(); setShowAdd(true); }}><Plus className="size-3.5" />Add Signature</Button></div>
+      <div className="flex items-center justify-between mb-8"><h1 className="text-[22px] font-normal text-gray-900 tracking-tight">Email Signatures</h1><Can page="signatures" action="create"><Button size="sm" onClick={() => { resetForm(); setShowAdd(true); }}><Plus className="size-3.5" />Add Signature</Button></Can></div>
       <div className="bg-white border border-[#e9ecef] rounded-[10px] shadow-sm overflow-hidden">
         <table className="w-full text-left border-collapse"><thead><tr className="border-b border-gray-100 bg-[#fafafa]"><th className="py-3 px-5 text-xs font-normal text-[#9ca3af]">Name</th><th className="py-3 px-5 text-xs font-normal text-[#9ca3af]">Default</th><th className="py-3 px-5 text-xs font-normal text-[#9ca3af]">Preview</th><th className="py-3 px-5 text-xs font-normal text-[#9ca3af]">Created</th><th className="py-3 px-5 text-xs font-normal text-[#9ca3af] text-right">Actions</th></tr></thead>
           <tbody className="divide-y divide-gray-100 text-xs">
@@ -38,8 +39,8 @@ export default function Page() {
               <td className="py-3 px-5 text-gray-500 max-w-[200px] truncate">{s.content}</td><td className="py-3 px-5 text-gray-500">{s.createdAt ? new Date(s.createdAt).toLocaleDateString() : '—'}</td>
               <td className="py-3 px-5 text-right"><RowActions actions={[
                 { label: "View", onClick: () => setViewSignature(s) },
-                { label: "Edit", onClick: () => openEdit(s) },
-                { label: "Delete", onClick: () => setDeleteConfirm(s.id) },
+                { label: "Edit", onClick: () => openEdit(s), permission: { page: 'signatures', action: 'edit' } },
+                { label: "Delete", onClick: () => setDeleteConfirm(s.id), permission: { page: 'signatures', action: 'delete' } },
               ]} /></td></tr>)}
           </tbody>
         </table>

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Plus, ChevronLeft, ChevronRight, Download } from 'lucide-react';
 import MainLayout from '@/components/main-layout';
 import { RowActions } from '@/components/row-actions';
+import { Can } from '@/components/can';
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetClose,
 } from '@/components/ui/sheet';
@@ -74,12 +75,12 @@ export default function RemovalListPage() {
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-[22px] font-normal text-gray-900 tracking-tight">Removal List</h1>
         <div className="flex items-center gap-2">
-          <button onClick={handleExport} disabled={items.length === 0} className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-semibold rounded-[6px] transition-colors shadow-sm disabled:opacity-50">
+          <Can page="removal-list" action="export"><button onClick={handleExport} disabled={items.length === 0} className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-semibold rounded-[6px] transition-colors shadow-sm disabled:opacity-50">
             <Download className="size-3.5" /> Export CSV
-          </button>
-          <Button size="sm" onClick={() => setShowAdd(true)}>
+          </button></Can>
+          <Can page="removal-list" action="create"><Button size="sm" onClick={() => setShowAdd(true)}>
             <Plus className="size-3.5" /> Add Entry
-          </Button>
+          </Button></Can>
         </div>
       </div>
       <div className="bg-white border border-[#e9ecef] rounded-[10px] shadow-sm overflow-hidden">

@@ -7,14 +7,19 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useAuth } from "@/contexts/auth-context";
 
 type Action = {
   label: string;
   onClick: () => void;
   className?: string;
+  permission?: { page: string; action: string };
 };
 
 export function RowActions({ actions }: { actions: Action[] }) {
+  const { can } = useAuth();
+  const visible = actions.filter(a => !a.permission || can(a.permission.page, a.permission.action));
+  if (visible.length === 0) return null;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -23,7 +28,7 @@ export function RowActions({ actions }: { actions: Action[] }) {
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-[120px]">
-        {actions.map((a) => (
+        {visible.map((a) => (
           <DropdownMenuItem key={a.label} onClick={a.onClick} className={a.className}>
             {a.label}
           </DropdownMenuItem>

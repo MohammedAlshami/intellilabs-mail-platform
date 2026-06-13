@@ -6,6 +6,7 @@ import MainLayout from '@/components/main-layout';
 import { RowActions } from '@/components/row-actions';
 import { ExportDropdown } from '@/components/shared/export-dropdown';
 import { Button } from '@/components/ui/button';
+import { Can } from '@/components/can';
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter, SheetClose,
 } from '@/components/ui/sheet';
@@ -75,7 +76,9 @@ export default function SendingHistoryPage() {
         <h1 className="text-[22px] font-normal text-gray-900 tracking-tight">Sending History</h1>
         <div className="flex items-center gap-2">
           <span className="text-xs text-gray-400">{sends.length} entries</span>
-          <ExportDropdown data={exportData} filename="sending-history" columnOrder={["Campaign", "Recipients", "Sent", "Bounced", "Date", "Status"]} />
+          <Can page="sending-history" action="export">
+            <ExportDropdown data={exportData} filename="sending-history" columnOrder={["Campaign", "Recipients", "Sent", "Bounced", "Date", "Status"]} />
+          </Can>
         </div>
       </div>
       <div className="bg-white border border-[#e9ecef] rounded-[10px] shadow-sm overflow-hidden">

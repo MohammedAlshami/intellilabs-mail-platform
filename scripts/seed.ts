@@ -1,6 +1,19 @@
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "../src/db/schema";
+import { ALL_PAGES, ALL_PERMISSIONS, type Permission, type PagePermissions } from "../src/lib/permissions";
 import bcrypt from "bcryptjs";
+
+function allPerms(val: boolean): Record<Permission, boolean> {
+  return Object.fromEntries(ALL_PERMISSIONS.map(p => [p, val])) as Record<Permission, boolean>;
+}
+
+function makePagePermissions(overrides: Partial<Record<string, Partial<Record<string, boolean>>>>): PagePermissions {
+  const result: PagePermissions = {};
+  for (const page of ALL_PAGES) {
+    result[page] = { ...allPerms(false), ...(overrides[page] || {}) };
+  }
+  return result;
+}
 
 const CF_API = "https://api.cloudflare.com/client/v4";
 
@@ -66,10 +79,39 @@ async function main() {
   for (const t of tables) await exec(t);
 
   console.log("Seeding roles...");
+  const adminPerms = makePagePermissions(
+    Object.fromEntries(ALL_PAGES.map(p => [p, { view: true, create: true, edit: true, delete: true, export: true }]))
+  );
+  const managerPerms = makePagePermissions({
+    dashboard: { view: true, export: true },
+    mail: { view: true, create: true, edit: true, delete: true, export: true },
+    campaigns: { view: true, create: true, edit: true, delete: true, export: true },
+    "email-lists": { view: true, create: true, edit: true, delete: true, export: true },
+    "sending-history": { view: true, export: true },
+    "bounce-monitor": { view: true, edit: true, export: true },
+    templates: { view: true, create: true, edit: true, delete: true },
+    websites: { view: true, create: true, edit: true, delete: true, export: true },
+    leads: { view: true, create: true, edit: true, delete: true, export: true },
+    "removal-list": { view: true, create: true, edit: true, delete: true, export: true },
+    profile: { view: true, edit: true },
+  });
+  const viewerPerms = makePagePermissions({
+    dashboard: { view: true },
+    mail: { view: true },
+    campaigns: { view: true },
+    "email-lists": { view: true },
+    "sending-history": { view: true },
+    "bounce-monitor": { view: true },
+    templates: { view: true },
+    websites: { view: true },
+    leads: { view: true },
+    "removal-list": { view: true },
+    profile: { view: true, edit: true },
+  });
   const roleData = [
-    { id: '1', name: 'Admin', description: 'Full access to all features', permissions: ["view_dashboard","manage_campaigns","manage_websites","manage_users","manage_roles","export_data","view_audit","manage_settings","view_reports","manage_leads","manage_removal_list","send_emails"], isLeader: true, leadsRoles: ["Manager","Viewer"] },
-    { id: '2', name: 'Manager', description: 'Can manage campaigns and view most data', permissions: ["view_dashboard","manage_campaigns","view_websites","manage_leads","export_data","view_audit","view_reports","send_emails","manage_removal_list"], isLeader: true, leadsRoles: ["Viewer"] },
-    { id: '3', name: 'Viewer', description: 'Read-only access to dashboards and reports', permissions: ["view_dashboard","view_campaigns","view_websites","view_leads","view_reports","view_audit"], isLeader: false, leadsRoles: [] },
+    { id: '1', name: 'Admin', description: 'Full access to all features', permissions: adminPerms, isLeader: true, leadsRoles: ["Manager","Viewer"] },
+    { id: '2', name: 'Manager', description: 'Can manage campaigns, send emails, and manage data', permissions: managerPerms, isLeader: true, leadsRoles: ["Viewer"] },
+    { id: '3', name: 'Viewer', description: 'Read-only access to dashboards and reports', permissions: viewerPerms, isLeader: false, leadsRoles: [] },
   ];
   for (const r of roleData) {
     await db.insert(schema.roles).values({ id: r.id, name: r.name, description: r.description, permissions: JSON.stringify(r.permissions), isLeader: r.isLeader, leadsRoles: JSON.stringify(r.leadsRoles), createdAt: '2026-06-01T00:00:00' });
@@ -81,6 +123,11 @@ async function main() {
     { email: "admin@intellilabs.com", password: "admin123", name: "Admin User", roleId: "1" },
     { email: "manager@intellilabs.com", password: "manager123", name: "Manager User", roleId: "2" },
     { email: "viewer@intellilabs.com", password: "viewer123", name: "Viewer User", roleId: "3" },
+    { email: "ahmad@demo-project-mail.xyz", password: "ahmad123", name: "Ahmad", roleId: "1" },
+    { email: "siti@demo-project-mail.xyz", password: "siti123", name: "Siti", roleId: "2" },
+    { email: "ryan@demo-project-mail.xyz", password: "ryan123", name: "Ryan", roleId: "2" },
+    { email: "nurul@demo-project-mail.xyz", password: "nurul123", name: "Nurul", roleId: "3" },
+    { email: "david@demo-project-mail.xyz", password: "david123", name: "David", roleId: "3" },
   ];
   for (const u of userData) {
     const hash = await bcrypt.hash(u.password, 10);

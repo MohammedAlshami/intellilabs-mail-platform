@@ -5,6 +5,7 @@ import * as cheerio from "cheerio";
 import * as z from "zod";
 import { chromium } from "playwright-core";
 import { extractEmails } from "@/lib/email-extractor";
+import { requirePermission } from "@/lib/api-auth";
 
 const WebsiteSchema = z.object({
   name: z.string().describe("Company/business name"),
@@ -80,6 +81,8 @@ async function isUrlHealthy(url: string): Promise<boolean> {
 }
 
 export async function POST(req: NextRequest) {
+  const { allowed, response } = await requirePermission(req, "websites", "create");
+  if (!allowed) return response;
   const { url, websiteId } = await req.json();
   if (!url) return NextResponse.json({ error: "URL required" }, { status: 400 });
 

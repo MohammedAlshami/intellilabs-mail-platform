@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, Pie, PieChart, Cell, Legend, Area, AreaChart } from 'recharts';
 import MainLayout from '@/components/main-layout';
 import { ExportDropdown } from '@/components/shared/export-dropdown';
+import { Can } from '@/components/can';
 
 const COLORS = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)'];
 
@@ -43,11 +44,13 @@ export default function ReportsPage() {
     <MainLayout>
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-[22px] font-normal text-gray-900 tracking-tight">Reports</h1>
-        <ExportDropdown data={[
-          ...stats.websitesByCategory.map(c => ({ Type: 'Websites by Category', Category: c.name, Count: c.count })),
-          ...stats.emailsByDomain.map(d => ({ Type: 'Emails by Domain', Domain: d.name, Count: d.count })),
-          ...stats.leadTypes.map(l => ({ Type: 'Lead Types', LeadType: l.name, Count: l.value })),
-        ]} filename="reports" />
+        <Can page="reports" action="export">
+          <ExportDropdown data={[
+            ...stats.websitesByCategory.map(c => ({ Type: 'Websites by Category', Category: c.name, Count: c.count })),
+            ...stats.emailsByDomain.map(d => ({ Type: 'Emails by Domain', Domain: d.name, Count: d.count })),
+            ...stats.leadTypes.map(l => ({ Type: 'Lead Types', LeadType: l.name, Count: l.value })),
+          ]} filename="reports" />
+        </Can>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">

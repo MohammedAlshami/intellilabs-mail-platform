@@ -31,6 +31,10 @@ export const SIDEBAR_ROUTES: Record<PageName, { title: string; path: string; gro
   profile: { title: "Profile", path: "/profile", group: "Admin" },
 };
 
+export const PATH_TO_PAGE: Record<string, PageName> = Object.fromEntries(
+  ALL_PAGES.map(p => [SIDEBAR_ROUTES[p].path, p])
+);
+
 export function parsePermissions(raw: string | string[] | undefined): PagePermissions {
   if (Array.isArray(raw)) {
     try { return JSON.parse(raw[0] || "{}"); } catch { return {}; }

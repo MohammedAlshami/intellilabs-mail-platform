@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import MainLayout from '@/components/main-layout';
 import { RowActions } from '@/components/row-actions';
+import { Can } from '@/components/can';
 import { ExportDropdown } from '@/components/shared/export-dropdown';
 import { Button } from '@/components/ui/button';
 import {
@@ -59,10 +60,10 @@ export default function EmailListsPage() {
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-[22px] font-normal text-gray-900 tracking-tight">Email Lists</h1>
         <div className="flex items-center gap-2">
-          <ExportDropdown data={lists.map(l => ({ Name: l.name, Emails: l.count, Source: l.source || '' }))} filename="email-lists" columnOrder={["Name", "Emails", "Source"]} />
-          <Button size="sm" onClick={() => setShowAdd(true)}>
+          <Can page="email-lists" action="export"><ExportDropdown data={lists.map(l => ({ Name: l.name, Emails: l.count, Source: l.source || '' }))} filename="email-lists" columnOrder={["Name", "Emails", "Source"]} /></Can>
+          <Can page="email-lists" action="create"><Button size="sm" onClick={() => setShowAdd(true)}>
             <Plus className="size-3.5" /> Add List
-          </Button>
+          </Button></Can>
         </div>
       </div>
       <div className="bg-white border border-[#e9ecef] rounded-[10px] shadow-sm overflow-hidden">
@@ -89,8 +90,8 @@ export default function EmailListsPage() {
                   <td className="py-3 px-5 text-right">
                     <RowActions actions={[
                       { label: 'View', onClick: () => setViewList(list) },
-                      { label: 'Export', onClick: () => setViewList(list) },
-                      { label: 'Delete', onClick: () => handleDelete(list.id), className: 'text-red-500' },
+                      { label: 'Export', onClick: () => setViewList(list), permission: { page: 'email-lists', action: 'export' } },
+                      { label: 'Delete', onClick: () => handleDelete(list.id), className: 'text-red-500', permission: { page: 'email-lists', action: 'delete' } },
                     ]} />
                   </td>
                 </tr>
@@ -151,11 +152,11 @@ export default function EmailListsPage() {
                 <SheetDescription className="text-[12px] text-gray-500">{viewList?.count} emails {viewList?.source ? `· ${viewList.source}` : ''}</SheetDescription>
               </div>
               {viewList && (
-                <ExportDropdown
+                <Can page="email-lists" action="export"><ExportDropdown
                   data={viewList.emails.split(/,\s*/).map((e: string, i: number) => ({ '#': i + 1, Email: e.trim() }))}
                   filename={viewList.name.toLowerCase().replace(/\s+/g, '-')}
                   columnOrder={['#', 'Email']}
-                />
+                /></Can>
               )}
             </div>
           </SheetHeader>

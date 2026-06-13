@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { getDb } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { requirePermission } from "@/lib/api-auth";
 
 export async function GET() {
   const db = await getDb();
@@ -11,6 +12,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const { allowed, response } = await requirePermission(req, "users", "create");
+  if (!allowed) return response;
   const db = await getDb();
   const { email, password, name, roleId, signatureId } = await req.json();
   const hash = await bcrypt.hash(password, 10);
@@ -20,6 +23,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
+  const { allowed, response } = await requirePermission(req, "users", "edit");
+  if (!allowed) return response;
   const db = await getDb();
   const { id, email, password, name, roleId, signatureId } = await req.json();
   const updates: any = {};
@@ -33,6 +38,8 @@ export async function PUT(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const { allowed, response } = await requirePermission(req, "users", "delete");
+  if (!allowed) return response;
   const db = await getDb();
   const { id } = await req.json();
   await db.delete(users).where(eq(users.id, id));

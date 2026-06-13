@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { Plus, ChevronLeft, ChevronRight } from "lucide-react";
 import MainLayout from "@/components/main-layout";
 import { RowActions } from "@/components/row-actions";
+import { Can } from "@/components/can";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetClose } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 
@@ -65,7 +66,7 @@ export default function UsersPage() {
     <MainLayout>
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-[22px] font-normal text-gray-900 tracking-tight">Users</h1>
-        <Button size="sm" onClick={() => { setEditUser(null); resetForm(); setShowAdd(true); }}><Plus className="size-3.5" /> Add User</Button>
+        <Can page="users" action="create"><Button size="sm" onClick={() => { setEditUser(null); resetForm(); setShowAdd(true); }}><Plus className="size-3.5" /> Add User</Button></Can>
       </div>
       <div className="bg-white border border-[#e9ecef] rounded-[10px] shadow-sm overflow-hidden">
         <table className="w-full text-left border-collapse">
@@ -89,8 +90,8 @@ export default function UsersPage() {
                 <td className="py-3 px-5 text-gray-500">{u.createdAt ? new Date(u.createdAt).toLocaleDateString() : "—"}</td>
                 <td className="py-3 px-5 text-right">
                   <RowActions actions={[
-                    { label: "Edit", onClick: () => openEdit(u) },
-                    { label: "Delete", onClick: () => handleDelete(u.id), className: "text-red-500" },
+                    { label: "Edit", onClick: () => openEdit(u), permission: { page: 'users', action: 'edit' } },
+                    { label: "Delete", onClick: () => handleDelete(u.id), className: "text-red-500", permission: { page: 'users', action: 'delete' } },
                   ]} />
                 </td>
               </tr>

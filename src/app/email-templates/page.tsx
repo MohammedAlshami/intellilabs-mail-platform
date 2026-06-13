@@ -5,7 +5,7 @@ import { useEditor, EditorContent } from "@tiptap/react"; import StarterKit from
 import MainLayout from "@/components/main-layout"; import { Button } from "@/components/ui/button"; import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter, SheetClose } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { cn } from "@/lib/utils"; import { RowActions } from "@/components/row-actions";
+import { cn } from "@/lib/utils"; import { RowActions } from "@/components/row-actions"; import { Can } from "@/components/can";
 type Template = { id: string; name: string; subject: string; body: string; createdAt: string }; const PAGE_SIZE = 10;
 
 export default function Page() {
@@ -35,7 +35,7 @@ export default function Page() {
 
   return (
     <MainLayout>
-      <div className="flex items-center justify-between mb-8"><h1 className="text-[22px] font-normal text-gray-900 tracking-tight">Email Templates</h1><Button size="sm" onClick={() => { resetForm(); setShowAdd(true); }}><Plus className="size-3.5" />Add Template</Button></div>
+      <div className="flex items-center justify-between mb-8"><h1 className="text-[22px] font-normal text-gray-900 tracking-tight">Email Templates</h1><Can page="templates" action="create"><Button size="sm" onClick={() => { resetForm(); setShowAdd(true); }}><Plus className="size-3.5" />Add Template</Button></Can></div>
       <div className="bg-white border border-[#e9ecef] rounded-[10px] shadow-sm overflow-hidden">
         <table className="w-full text-left border-collapse"><thead><tr className="border-b border-gray-100 bg-[#fafafa]"><th className="py-3 px-5 text-xs font-normal text-[#9ca3af]">Name</th><th className="py-3 px-5 text-xs font-normal text-[#9ca3af]">Subject</th><th className="py-3 px-5 text-xs font-normal text-[#9ca3af]">Created</th><th className="py-3 px-5 text-xs font-normal text-[#9ca3af] text-right">Actions</th></tr></thead>
           <tbody className="divide-y divide-gray-100 text-xs">
@@ -48,8 +48,8 @@ export default function Page() {
                 <td className="py-3 px-5 text-gray-500">{t.createdAt ? new Date(t.createdAt).toLocaleDateString() : '—'}</td>
                 <td className="py-3 px-5 text-right"><RowActions actions={[
                   { label: "View", onClick: () => setViewTemplate(t) },
-                  { label: "Edit", onClick: () => { setName(t.name); setSubject(t.subject); setEditingId(t.id); if (editor) editor.commands.setContent(t.body); setShowAdd(true); } },
-                  { label: "Delete", onClick: () => setDeleteConfirm(t.id) },
+                  { label: "Edit", onClick: () => { setName(t.name); setSubject(t.subject); setEditingId(t.id); if (editor) editor.commands.setContent(t.body); setShowAdd(true); }, permission: { page: 'templates', action: 'edit' } },
+                  { label: "Delete", onClick: () => setDeleteConfirm(t.id), permission: { page: 'templates', action: 'delete' } },
                 ]} /></td>
               </tr>
             ))}

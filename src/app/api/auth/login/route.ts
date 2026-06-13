@@ -23,11 +23,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
     }
 
-    let permissions: string[] = [];
+    let permissions: Record<string, Record<string, boolean>> = {};
     if (user.roleId) {
       const [role] = await db.select().from(roles).where(eq(roles.id, user.roleId));
       if (role) {
-        try { permissions = JSON.parse(role.permissions); } catch {}
+        try { permissions = JSON.parse(role.permissions ?? "{}"); } catch {}
       }
     }
 

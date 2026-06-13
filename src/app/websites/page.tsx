@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Plus, ChevronLeft, ChevronRight, ExternalLink, ArrowUpRight, Check, Loader, Search, Globe } from 'lucide-react';
 import MainLayout from '@/components/main-layout';
 import { RowActions } from '@/components/row-actions';
+import { Can } from '@/components/can';
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetClose,
 } from '@/components/ui/sheet';
@@ -263,12 +264,12 @@ export default function WebsitesPage() {
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-[22px] font-normal text-gray-900 tracking-tight">Websites</h1>
         <div className="flex items-center gap-2">
-          <Button size="sm" variant="secondary" onClick={() => setShowExplore(true)}>
+          <Can page="websites" action="create"><Button size="sm" variant="secondary" onClick={() => setShowExplore(true)}>
             <Search className="size-3.5" /> Explore
-          </Button>
-          <Button size="sm" onClick={() => setShowAdd(true)}>
+          </Button></Can>
+          <Can page="websites" action="create"><Button size="sm" onClick={() => setShowAdd(true)}>
             <Plus className="size-3.5" /> Add Website
-          </Button>
+          </Button></Can>
         </div>
       </div>
       <div className="bg-white border border-[#e9ecef] rounded-[10px] shadow-sm overflow-hidden">
@@ -310,7 +311,7 @@ export default function WebsitesPage() {
                   <td className="py-3 px-5 text-right">
                     <RowActions actions={[
                       { label: 'View', onClick: () => setViewWebsite(w) },
-                      { label: 'Delete', onClick: () => handleDelete(w.id), className: 'text-red-500' },
+                      { label: 'Delete', onClick: () => handleDelete(w.id), className: 'text-red-500', permission: { page: 'websites', action: 'delete' } },
                     ]} />
                   </td>
                 </tr>
