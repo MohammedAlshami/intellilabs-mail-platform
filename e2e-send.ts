@@ -40,9 +40,9 @@ async function test() {
   await editor.click();
   await editor.fill("This is a test email sent via Playwright.");
 
-  // Click Send
-  const sendBtn = page.locator("button:has(svg.lucide-send)").first();
-  await sendBtn.click();
+  // Click Send (force to bypass modal scroll container interception)
+  const sendBtn = page.locator("button:has(svg.lucide-send)").last();
+  await sendBtn.click({ force: true });
   await page.waitForTimeout(2000);
   console.log("✓ Email sent");
 
