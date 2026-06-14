@@ -4,6 +4,7 @@ import { like, or, and, eq, asc, sql } from "drizzle-orm";
 import {
   websites, campaigns, leads, emailLists, sendingHistory,
   bounceResponses, removalList, auditLogs, roles, users, emails,
+  emailTemplates,
 } from "@/db/schema";
 import { Agent, Runner, tool } from "@openai/agents";
 import { OpenAIProvider, setOpenAIAPI } from "@openai/agents-openai";
@@ -25,7 +26,7 @@ const TABLE_MAP: Record<string, any> = {
   websites, campaigns, leads, "email-lists": emailLists,
   "sending-history": sendingHistory, "bounce-responses": bounceResponses,
   "removal-list": removalList, "audit-logs": auditLogs, roles, users,
-  emails,
+  emails, "email-templates": emailTemplates,
 };
 
 const SEARCH_COLS: Record<string, string[]> = {
@@ -40,6 +41,7 @@ const SEARCH_COLS: Record<string, string[]> = {
   roles: ["name", "description"],
   users: ["email", "name"],
   emails: ["subject", "fromName", "fromEmail", "toEmail", "bodyText"],
+  "email-templates": ["name", "subject", "body"],
 };
 
 const PAGES = [
@@ -138,7 +140,7 @@ export async function POST(req: NextRequest) {
 
       const searchTool = tool({
         name: "search",
-        description: "Search across a data table. Tables: websites, campaigns, leads, email-lists, sending-history, bounce-responses, removal-list, audit-logs, roles, users.",
+        description: "Search across a data table. Tables: websites, campaigns, leads, email-lists, sending-history, bounce-responses, removal-list, audit-logs, roles, users, email-templates.",
         parameters: z.object({
           table: z.string(),
           q: z.string().optional(),
@@ -253,7 +255,7 @@ Available pages: ${PAGES.join(", ")}.
 
 ${userInfoNote}
 
-You have tools to navigate pages, search/query data, and compose emails.
+You have tools to navigate pages, search/query data, compose emails, and manage email templates.
 
 RULES:
 - If the user wants to go to a page, use the navigate tool.
@@ -263,7 +265,8 @@ RULES:
 - The current user info is available via get_user_info.
 - Remember conversation context.
 - Be concise and helpful.
-- STRICT RULE when composing emails with set_email: The email body MUST NOT contain any sign-off, closing line, signature block, or farewell. This means NO "Best regards", "Sincerely", "Best", "Thanks", "Cheers", "Respectfully", your name, company name, or any line starting with "--" or "---". The body must end abruptly after the last content paragraph. A professional signature is appended automatically by the system — you do NOT need to add one. Violating this rule will result in duplicate signatures.`,
+- STRICT RULE when composing emails with set_email: The email body MUST NOT contain any sign-off, closing line, signature block, or farewell. This means NO "Best regards", "Sincerely", "Best", "Thanks", "Cheers", "Respectfully", your name, company name, or any line starting with "--" or "---". The body must end abruptly after the last content paragraph. A professional signature is appended automatically by the system — you do NOT need to add one. Violating this rule will result in duplicate signatures.
+- Email templates are stored in the "email-templates" table. Use search(table="email-templates", q="...") to list templates by name. Use get(table="email-templates", id="...") to fetch a full template by ID. Templates have name, subject, and body fields. When a user asks about email templates or wants to use a template, search for it or fetch it using these tools.`,
           model: "openai/gpt-5-nano",
           modelSettings: {
             reasoning: { effort: EFFORTS.includes(reasoningEffort as any) ? reasoningEffort : "medium" },

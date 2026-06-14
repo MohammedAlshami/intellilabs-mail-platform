@@ -4,12 +4,14 @@ import { like, or, and, sql, eq } from "drizzle-orm";
 import {
   websites, auditLogs, roles, campaigns, leads, bounceResponses,
   removalList, users, campaignRecipients, emailLists, sendingHistory,
+  emailTemplates,
 } from "@/db/schema";
 
 const TABLE_MAP: Record<string, any> = {
   websites, campaigns, leads, "email-lists": emailLists,
   "sending-history": sendingHistory, "bounce-responses": bounceResponses,
   "removal-list": removalList, "audit-logs": auditLogs, roles, users,
+  "email-templates": emailTemplates,
 };
 
 const SEARCH_COLS: Record<string, string[]> = {
@@ -23,6 +25,7 @@ const SEARCH_COLS: Record<string, string[]> = {
   "audit-logs": ["action", "entityType"],
   roles: ["name", "description"],
   users: ["email", "name"],
+  "email-templates": ["name", "subject", "body"],
 };
 
 export async function POST(req: NextRequest) {
@@ -59,7 +62,7 @@ export async function POST(req: NextRequest) {
     }
 
     case "counts": {
-      const allTables = ["websites", "campaigns", "leads", "email-lists", "sending-history", "bounce-responses", "removal-list", "users"];
+      const allTables = ["websites", "campaigns", "leads", "email-lists", "sending-history", "bounce-responses", "removal-list", "users", "email-templates"];
       const results: Record<string, number> = {};
       for (const t of allTables) {
         const tbl = TABLE_MAP[t];

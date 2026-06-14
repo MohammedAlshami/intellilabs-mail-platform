@@ -3,6 +3,8 @@ import { Agent, Runner, tool } from "@openai/agents";
 import { OpenAIProvider, setOpenAIAPI } from "@openai/agents-openai";
 import { z } from "zod";
 import { verifyToken } from "@/lib/auth";
+import { getDb } from "@/db";
+import { emailTemplates } from "@/db/schema";
 
 setOpenAIAPI("chat_completions");
 
@@ -66,6 +68,21 @@ export async function POST(req: NextRequest) {
         },
       });
 
+      // Auto-detect matching template from user's message
+      const allTemplates = await (await getDb()).select().from(emailTemplates);
+      const lastMsg = messages[messages.length - 1]?.content?.toLowerCase() || "";
+      let matchedTemplate: any = null;
+      for (const t of allTemplates) {
+        if (lastMsg.includes(t.name.toLowerCase().replace(" email", "")) ||
+            t.name.toLowerCase().split(" ").some((w: string) => w.length > 4 && lastMsg.includes(w))) {
+          matchedTemplate = t;
+          break;
+        }
+      }
+      const templateNote = matchedTemplate
+        ? `\n\nA matching email template was found! Use this template as a base and fill in the {{placeholder}} fields:\nTemplate name: ${matchedTemplate.name}\nTemplate subject: ${matchedTemplate.subject}\nTemplate body: ${matchedTemplate.body}`
+        : "\n\nNo matching template was found. Write the email from scratch.";
+
       const userInfoNote = user ? `The current user is ${user.name} (${user.email}).` : "";
 
       try {
@@ -74,6 +91,7 @@ export async function POST(req: NextRequest) {
           instructions: `You are an email composition assistant. Help users draft professional emails.
 
 ${userInfoNote}
+${templateNote}
 
 RULES:
 1. Write proper, detailed, formal emails with a warm tone.
