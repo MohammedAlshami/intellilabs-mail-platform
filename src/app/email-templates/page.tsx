@@ -36,7 +36,7 @@ export default function Page() {
   return (
     <MainLayout>
       <div className="flex items-center justify-between mb-8"><h1 className="text-[22px] font-normal text-gray-900 tracking-tight">Email Templates</h1><Can page="templates" action="create"><Button size="sm" onClick={() => { resetForm(); setShowAdd(true); }}><Plus className="size-3.5" />Add Template</Button></Can></div>
-      <div className="bg-white border border-[#e9ecef] rounded-[10px] shadow-sm overflow-hidden">
+      <div className="bg-white border border-[#e9ecef] rounded-[10px] shadow-sm overflow-x-auto">
         <table className="w-full text-left border-collapse"><thead><tr className="border-b border-gray-100 bg-[#fafafa]"><th className="py-3 px-5 text-xs font-normal text-[#9ca3af]">Name</th><th className="py-3 px-5 text-xs font-normal text-[#9ca3af]">Subject</th><th className="py-3 px-5 text-xs font-normal text-[#9ca3af]">Created</th><th className="py-3 px-5 text-xs font-normal text-[#9ca3af] text-right">Actions</th></tr></thead>
           <tbody className="divide-y divide-gray-100 text-xs">
             {paged.length === 0 ? (

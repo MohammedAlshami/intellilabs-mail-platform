@@ -3,9 +3,11 @@ import { createAgent } from "langchain";
 import { ChatOpenAI } from "@langchain/openai";
 import * as cheerio from "cheerio";
 import * as z from "zod";
-import { chromium } from "playwright-core";
 import { extractEmails } from "@/lib/email-extractor";
 import { requirePermission } from "@/lib/api-auth";
+import { getDb } from "@/db";
+import { websites } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 const WebsiteSchema = z.object({
   name: z.string().describe("Company/business name"),
@@ -14,27 +16,12 @@ const WebsiteSchema = z.object({
   services: z.array(z.string()).describe("Services they provide"),
 });
 
-const CF_API = "https://api.cloudflare.com/client/v4";
-
 async function updateProgress(websiteId: string, step: number, status: string, message: string) {
-  const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
-  const databaseId = process.env.CLOUDFLARE_DATABASE_ID;
-  const token = process.env.CLOUDFLARE_D1_TOKEN;
-  if (!accountId || !databaseId || !token) return;
-
-  const progress = JSON.stringify({
-    currentStep: step,
-    status,
-    message,
-    updatedAt: new Date().toISOString(),
-  });
-
   try {
-    await fetch(`${CF_API}/accounts/${accountId}/d1/database/${databaseId}/query`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ sql: "UPDATE websites SET scrape_progress = ? WHERE id = ?", params: [progress, websiteId] }),
-    });
+    const db = await getDb();
+    await db.update(websites).set({
+      scrapeProgress: JSON.stringify({ currentStep: step, status, message, updatedAt: new Date().toISOString() }),
+    }).where(eq(websites.id, websiteId));
   } catch {}
 }
 
@@ -42,7 +29,7 @@ async function fetchPageText(url: string): Promise<string> {
   try {
     const res = await fetch(url, {
       headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(12000),
     });
     const html = await res.text();
     const $ = cheerio.load(html);
@@ -52,17 +39,6 @@ async function fetchPageText(url: string): Promise<string> {
     const text = $("body").text().replace(/\s+/g, " ").trim();
     if (text.length >= 100) return text;
   } catch {}
-
-  try {
-    const browser = await chromium.launch({ headless: true });
-    const page = await browser.newPage();
-    await page.goto(url, { waitUntil: "networkidle", timeout: 15000 });
-    await page.waitForTimeout(2000);
-    const text = await page.evaluate(() => document.body.innerText);
-    await browser.close();
-    if (text && text.length >= 20) return text.replace(/\s+/g, " ").trim();
-  } catch {}
-
   return "";
 }
 

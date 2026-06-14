@@ -47,11 +47,11 @@ def main():
         settings = {
             "LOG_ENABLED": False,
             "ROBOTSTXT_OBEY": False,
-            "DEPTH_LIMIT": 3,
-            "CONCURRENT_REQUESTS": 24,
-            "DOWNLOAD_DELAY": 0.1,
-            "CLOSESPIDER_PAGECOUNT": 50,
-            "CLOSESPIDER_TIMEOUT": 12,
+            "DEPTH_LIMIT": 2,
+            "CONCURRENT_REQUESTS": 32,
+            "DOWNLOAD_DELAY": 0,
+            "CLOSESPIDER_PAGECOUNT": 25,
+            "CLOSESPIDER_TIMEOUT": 6,
         }
         process = CrawlerProcess(settings)
         process.crawl(EmailSpider, start_urls=[url], allowed_domains=[domain])

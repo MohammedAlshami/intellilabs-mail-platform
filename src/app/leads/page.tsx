@@ -31,7 +31,7 @@ export default function LeadsPage() {
           <Can page="leads" action="export"><ExportDropdown data={leads.map(l => ({ Type: l.type, Value: l.value, Source: l.websiteName, Date: new Date(l.createdAt).toLocaleDateString() }))} filename="leads" columnOrder={["Type", "Value", "Source", "Date"]} /></Can>
         </div>
       </div>
-      <div className="bg-white border border-[#e9ecef] rounded-[10px] shadow-sm overflow-hidden">
+      <div className="bg-white border border-[#e9ecef] rounded-[10px] shadow-sm overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="border-b border-gray-100 bg-[#fafafa]">

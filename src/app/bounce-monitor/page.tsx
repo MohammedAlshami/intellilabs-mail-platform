@@ -39,7 +39,7 @@ export default function BounceMonitorPage() {
           </button>
         ))}
       </div>
-      <div className="bg-white border border-[#e9ecef] rounded-[10px] shadow-sm overflow-hidden">
+      <div className="bg-white border border-[#e9ecef] rounded-[10px] shadow-sm overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="border-b border-gray-100 bg-[#fafafa]">

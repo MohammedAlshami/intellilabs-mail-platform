@@ -1,9 +1,13 @@
 'use client';
 
 import { Suspense, useState, useEffect, useRef } from 'react';
-import { Plus, ChevronLeft, ChevronRight, ArrowUpRight, Check, Send, Eye, EyeOff } from 'lucide-react';
-import { IconCheck } from '@tabler/icons-react';
+import { Plus, ChevronLeft, ChevronRight, ArrowUpRight, Send, X, Bold, Italic, Underline as UnderlineIcon, List, ListOrdered, Link as LinkIcon, Sparkles, Loader2 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useEditor, EditorContent } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import Underline from '@tiptap/extension-underline';
+import Link from '@tiptap/extension-link';
+import Placeholder from '@tiptap/extension-placeholder';
 import MainLayout from '@/components/main-layout';
 import { RowActions } from '@/components/row-actions';
 import { Can } from '@/components/can';
@@ -35,23 +39,7 @@ type EmailList = {
   id: string; name: string; emails: string; count: number; createdAt: string;
 };
 
-type Step = {
-  id: number;
-  type: 'done' | 'in progress' | 'open';
-  title: string;
-  description: string;
-  activityTime: string;
-};
-
 const PAGE_SIZE = 10;
-
-const PROGRESS_STEPS: Step[] = [
-  { id: 1, type: 'open', title: 'Validating recipients', description: 'Checking email format and validity', activityTime: 'Waiting...' },
-  { id: 2, type: 'open', title: 'Extracting email addresses', description: 'Parsing recipient list', activityTime: 'Waiting...' },
-  { id: 3, type: 'open', title: 'Preparing send queue', description: 'Organizing batch for delivery', activityTime: 'Waiting...' },
-  { id: 4, type: 'open', title: 'Processing campaign', description: 'Sending emails in batches of 1,000', activityTime: 'Waiting...' },
-  { id: 5, type: 'open', title: 'Finalizing', description: 'Updating campaign status', activityTime: 'Waiting...' },
-];
 
 function CampaignPageInner() {
   const router = useRouter();
@@ -61,25 +49,37 @@ function CampaignPageInner() {
   const [viewCampaign, setViewCampaign] = useState<Campaign | null>(null);
   const [showAdd, setShowAdd] = useState(false);
 
-  const [step, setStep] = useState<'setup' | 'recipients' | 'processing' | 'confirmation'>('setup');
   const [name, setName] = useState('');
-  const [objective, setObjective] = useState('');
-  const [emailContent, setEmailContent] = useState('');
-  const [recipientMode, setRecipientMode] = useState<'list' | 'custom'>('list');
-  const [selectedListId, setSelectedListId] = useState('');
-  const [customEmails, setCustomEmails] = useState('');
-  const [emailLists, setEmailLists] = useState<EmailList[]>([]);
-  const [bccEmails, setBccEmails] = useState('');
-  const [ccEmails, setCcEmails] = useState('');
-  const [showBcc, setShowBcc] = useState(false);
+  const [recipients, setRecipients] = useState<string[]>([]);
+  const [recipientInput, setRecipientInput] = useState('');
+  const [cc, setCc] = useState<string[]>([]);
+  const [ccInput, setCcInput] = useState('');
+  const [bcc, setBcc] = useState<string[]>([]);
+  const [bccInput, setBccInput] = useState('');
+  const [subject, setSubject] = useState('');
   const [showCc, setShowCc] = useState(false);
-
-  const [progressSteps, setProgressSteps] = useState<Step[]>(PROGRESS_STEPS);
-  const [parsedEmails, setParsedEmails] = useState<string[]>([]);
+  const [showBcc, setShowBcc] = useState(false);
+  const [emailLists, setEmailLists] = useState<EmailList[]>([]);
+  const [selectedListId, setSelectedListId] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const [searchResults, setSearchResults] = useState<Campaign[] | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      Underline,
+      Link.configure({ openOnClick: false }),
+      Placeholder.configure({ placeholder: "Write your campaign email..." }),
+    ],
+    content: "",
+    editorProps: {
+      attributes: {
+        class: "prose prose-sm max-w-none focus:outline-none min-h-[200px] text-slate-800 [&_p:empty]:block [&_p:empty]:h-[1em]",
+      },
+    },
+  });
 
   const fetchCampaigns = () => { fetch('/api/campaigns').then(r => r.json()).then(setCampaigns); };
   useEffect(() => { fetchCampaigns(); }, []);
@@ -95,83 +95,87 @@ function CampaignPageInner() {
   const paged = campaigns.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   const resetForm = () => {
-    setStep('setup');
     setName('');
-    setObjective('');
-    setEmailContent('');
-    setRecipientMode('list');
-    setSelectedListId('');
-    setCustomEmails('');
-    setBccEmails('');
-    setCcEmails('');
-    setShowBcc(false);
+    setRecipients([]);
+    setRecipientInput('');
+    setCc([]);
+    setCcInput('');
+    setBcc([]);
+    setBccInput('');
+    setSubject('');
     setShowCc(false);
-    setParsedEmails([]);
-    setProgressSteps(PROGRESS_STEPS);
-    if (intervalRef.current) clearInterval(intervalRef.current);
+    setShowBcc(false);
+    setSelectedListId('');
+    if (editor) editor.commands.setContent('');
   };
 
-  const handleStartProcessing = async () => {
-    setStep('processing');
-    setProgressSteps(prev => prev.map((s, i) => ({ ...s, type: i === 0 ? 'in progress' as const : 'open' as const, activityTime: i === 0 ? 'Running now...' : s.activityTime })));
-
-    const emails = recipientMode === 'list'
-      ? (emailLists.find(l => l.id === selectedListId)?.emails || '')
-      : customEmails;
-    const allEmails = emails.split(/[\n,]+/).map(e => e.trim()).filter(e => e.includes('@'));
-
-    let currentStep = 0;
-    intervalRef.current = setInterval(() => {
-      currentStep++;
-      if (currentStep >= PROGRESS_STEPS.length) {
-        if (intervalRef.current) clearInterval(intervalRef.current);
-        return;
-      }
-      setProgressSteps(prev => prev.map((s, i) => {
-        if (i < currentStep) return { ...s, type: 'done', activityTime: 'Completed' };
-        if (i === currentStep) return { ...s, type: 'in progress', activityTime: 'Running now...' };
-        return s;
-      }));
-    }, 800);
-
-    setTimeout(() => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      setProgressSteps(prev => prev.map(s => ({ ...s, type: 'done', activityTime: 'Completed' })));
-
-      setParsedEmails(allEmails);
-      setStep('confirmation');
-    }, PROGRESS_STEPS.length * 800 + 400);
+  const addRecipient = () => {
+    const val = recipientInput.trim().toLowerCase();
+    if (val && !recipients.includes(val)) setRecipients([...recipients, val]);
+    setRecipientInput('');
+  };
+  const removeRecipient = (email: string) => setRecipients(recipients.filter(r => r !== email));
+  const handleRecipientKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addRecipient(); }
+    else if (e.key === "Backspace" && recipientInput === "" && recipients.length > 0) setRecipients(recipients.slice(0, -1));
+  };
+  const addCc = () => { const val = ccInput.trim(); if (val && !cc.includes(val)) setCc([...cc, val]); setCcInput(""); };
+  const removeCc = (email: string) => setCc(cc.filter(r => r !== email));
+  const handleCcKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addCc(); }
+    else if (e.key === "Backspace" && ccInput === "" && cc.length > 0) setCc(cc.slice(0, -1));
+  };
+  const addBcc = () => { const val = bccInput.trim(); if (val && !bcc.includes(val)) setBcc([...bcc, val]); setBccInput(""); };
+  const removeBcc = (email: string) => setBcc(bcc.filter(r => r !== email));
+  const handleBccKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addBcc(); }
+    else if (e.key === "Backspace" && bccInput === "" && bcc.length > 0) setBcc(bcc.slice(0, -1));
   };
 
-  const handleFinalize = async (status: 'draft' | 'sending') => {
-    await fetch('/api/campaigns', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name,
-        objective,
-        emailContent,
-        recipientEmails: parsedEmails.join('\n'),
-        status,
-      }),
-    });
-
-    setShowAdd(false);
-    resetForm();
-    fetchCampaigns();
+  const handleListSelect = (listId: string) => {
+    setSelectedListId(listId);
+    const list = emailLists.find(l => l.id === listId);
+    if (list) {
+      const emails = list.emails.split(/,\s*/).filter(Boolean);
+      setRecipients(emails);
+    }
   };
 
-  const selectedList = emailLists.find(l => l.id === selectedListId);
-  const previewEmails = recipientMode === 'list'
-    ? (selectedList?.emails || '').split(/,\s*/).filter(Boolean)
-    : customEmails.split(/[\n,]+/).map(e => e.trim()).filter(e => e.includes('@'));
+  const handleSave = async (status: 'draft' | 'sending') => {
+    if (!name.trim() || recipients.length === 0) return;
+    setSaving(true);
+    setSaveError('');
+    const body = editor?.getHTML() || editor?.getText() || '';
+    try {
+      const res = await fetch('/api/campaigns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          subject,
+          emailContent: body,
+          recipientEmails: recipients.join('\n'),
+          cc: cc.join(', '),
+          bcc: bcc.join(', '),
+          status,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to save campaign');
+      setShowAdd(false);
+      resetForm();
+      fetchCampaigns();
+    } catch (e: any) {
+      setSaveError(e.message || 'Failed to save campaign');
+    }
+    setSaving(false);
+  };
 
   const displayCampaigns = searchResults ?? campaigns;
   const displayTotal = searchResults !== null ? searchResults.length : campaigns.length;
   const displayPaged = displayCampaigns.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
   const displayTotalPages = Math.ceil(displayCampaigns.length / PAGE_SIZE);
 
-  // Fix page if it exceeds the filtered total
   if (page >= displayTotalPages && displayTotalPages > 0) setPage(0);
 
   return (
@@ -186,7 +190,7 @@ function CampaignPageInner() {
           </Button></Can>
         </div>
       </div>
-      <div className="bg-white border border-[#e9ecef] rounded-[10px] shadow-sm overflow-hidden">
+      <div className="bg-white border border-[#e9ecef] rounded-[10px] shadow-sm overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="border-b border-gray-100 bg-[#fafafa]">
@@ -273,325 +277,130 @@ function CampaignPageInner() {
 
       {/* Add Campaign Sheet */}
       <Sheet open={showAdd} onOpenChange={(o) => { if (!o) { setShowAdd(false); resetForm(); } }}>
-        <SheetContent className="sm:max-w-xl p-0 gap-0 overflow-y-auto">
-          {/* Step indicator */}
-          <div className="px-6 pt-6 pb-0">
-            <SheetHeader className="pb-2">
-              <SheetTitle className="text-[18px] font-semibold text-[#111827]">
-                {step === 'setup' && 'New Campaign'}
-                {step === 'recipients' && 'Choose Recipients'}
-                {step === 'processing' && 'Processing Campaign'}
-                {step === 'confirmation' && 'Campaign Ready'}
-              </SheetTitle>
-              <SheetDescription className="text-[12px] text-gray-500">
-                {step === 'setup' && 'Start by naming your campaign and describing your goal'}
-                {step === 'recipients' && 'Select an existing list or paste custom emails'}
-                {step === 'processing' && 'Please wait while we process your campaign'}
-                {step === 'confirmation' && 'Review and launch your campaign'}
-              </SheetDescription>
-            </SheetHeader>
+        <SheetContent className="sm:max-w-2xl p-0 gap-0 flex flex-col">
+          <SheetHeader className="px-5 pt-5 pb-3 border-b shrink-0">
+            <SheetTitle className="text-[18px] font-semibold">New Campaign</SheetTitle>
+            <SheetDescription className="text-[12px] text-gray-500">Compose your campaign email</SheetDescription>
+          </SheetHeader>
 
-            {step !== 'processing' && (
-              <div className="flex items-center gap-2 mb-5">
-                {['setup', 'recipients', 'confirmation'].map((s, i) => (
-                  <div key={s} className="flex items-center gap-2">
-                    <div className={cn(
-                      "size-6 rounded-full flex items-center justify-center text-[11px] font-semibold",
-                      step === s ? 'bg-primary text-primary-foreground' :
-                      ['recipients', 'confirmation'].indexOf(s) < ['setup', 'recipients', 'confirmation'].indexOf(step) ? 'bg-green-500 text-white' :
-                      'bg-gray-100 text-gray-400'
-                    )}>
-                      {['recipients', 'confirmation'].indexOf(s) < ['setup', 'recipients', 'confirmation'].indexOf(step) ? <Check className="size-3.5" /> : i + 1}
-                    </div>
-                    <span className={cn("text-[11px] font-medium", step === s ? 'text-gray-700' : 'text-gray-400')}>
-                      {s === 'setup' ? 'Setup' : s === 'recipients' ? 'Recipients' : 'Review'}
+          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+            <div>
+              <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wider block mb-1">Campaign Name</label>
+              <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Q3 Product Launch" className="w-full text-[13px] text-gray-700 bg-white border border-[#e5e7eb] rounded-[6px] px-3 py-2 focus:outline-none focus:ring-1 focus:ring-gray-400" />
+            </div>
+
+            <div className="border-b pb-0">
+              <div className="flex items-start gap-2">
+                <span className="mt-1.5 text-xs text-gray-400 shrink-0">To:</span>
+                <div className="flex flex-1 flex-wrap items-center gap-1.5">
+                  {recipients.map(email => (
+                    <span key={email} className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-sm font-medium text-slate-700">
+                      {email}
+                      <button type="button" onClick={() => removeRecipient(email)} className="rounded-full p-0.5 text-slate-400 hover:bg-slate-200 hover:text-slate-600"><X className="h-3 w-3" /></button>
                     </span>
-                    {i < 2 && <span className="text-gray-300 text-[10px] mx-1">—</span>}
-                  </div>
-                ))}
+                  ))}
+                  <input type="text" value={recipientInput} onChange={e => setRecipientInput(e.target.value)} onKeyDown={handleRecipientKeyDown} onBlur={addRecipient} placeholder={recipients.length === 0 ? "Add recipient or select a list..." : "Add another..."} className="min-w-[140px] flex-1 bg-transparent py-1 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none" />
+                </div>
+                <Select value={selectedListId} onValueChange={handleListSelect}>
+                  <SelectTrigger className="w-[180px] h-8 text-xs shrink-0">
+                    <SelectValue placeholder="Pick a list..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {emailLists.length === 0 ? (
+                      <div className="px-3 py-4 text-center text-[12px] text-gray-400">No lists found</div>
+                    ) : emailLists.map(list => (
+                      <SelectItem key={list.id} value={list.id} className="text-xs">{list.name} ({list.count})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-            )}
-          </div>
-
-          <div className="px-6 pb-6 max-h-[70vh] overflow-y-auto">
-            {/* Step 1: Setup */}
-            {step === 'setup' && (
-              <div className="space-y-4">
-                <div>
-                  <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wider block mb-1.5">Campaign Name</label>
-                  <input
-                    value={name}
-                    onChange={e => setName(e.target.value)}
-                    placeholder="e.g. Q3 Product Launch"
-                    className="w-full text-[13px] text-gray-700 bg-white border border-[#e5e7eb] rounded-[6px] px-3 py-2 focus:outline-none focus:ring-1 focus:ring-gray-400"
-                  />
-                </div>
-                <div>
-                  <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wider block mb-1.5">Campaign Objective</label>
-                  <Textarea
-                    value={objective}
-                    onChange={e => setObjective(e.target.value)}
-                    placeholder="Describe the goal of this campaign..."
-                    rows={3}
-                    className="resize-none text-[13px]"
-                  />
-                </div>
-                <div>
-                  <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wider block mb-1.5">Email Content</label>
-                  <Textarea
-                    value={emailContent}
-                    onChange={e => setEmailContent(e.target.value)}
-                    placeholder="Paste your email content here...&#10;&#10;Hi there,&#10;&#10;We're excited to share our latest updates..."
-                    rows={6}
-                    className="text-[13px]"
-                  />
-                </div>
-                <div className="pt-2">
-                  <Button
-                    onClick={() => setStep('recipients')}
-                    disabled={!name.trim()}
-                    className="w-full"
-                  >
-                    Continue
-                  </Button>
-                </div>
+              <div className="flex items-center gap-2 mt-1 mb-2 ml-[28px]">
+                <button type="button" onClick={() => setShowCc(!showCc)} className={`text-[11px] px-2 py-0.5 rounded transition-colors ${showCc ? "bg-slate-200 text-slate-700" : "text-gray-400 hover:text-gray-600"}`}>CC</button>
+                <button type="button" onClick={() => setShowBcc(!showBcc)} className={`text-[11px] px-2 py-0.5 rounded transition-colors ${showBcc ? "bg-slate-200 text-slate-700" : "text-gray-400 hover:text-gray-600"}`}>BCC</button>
               </div>
-            )}
-
-            {/* Step 2: Recipients */}
-            {step === 'recipients' && (
-              <div className="space-y-4">
-                <div className="flex gap-2 bg-gray-50 rounded-lg p-1 border border-gray-100">
-                  <button
-                    onClick={() => setRecipientMode('list')}
-                    className={cn(
-                      "flex-1 py-2 text-[12px] font-medium rounded-md transition-colors",
-                      recipientMode === 'list' ? 'bg-white text-gray-900 shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'
-                    )}
-                  >
-                    Email List
-                  </button>
-                  <button
-                    onClick={() => setRecipientMode('custom')}
-                    className={cn(
-                      "flex-1 py-2 text-[12px] font-medium rounded-md transition-colors",
-                      recipientMode === 'custom' ? 'bg-white text-gray-900 shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'
-                    )}
-                  >
-                    Custom List
-                  </button>
-                </div>
-
-                {recipientMode === 'list' ? (
-                  <div>
-                    <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wider block mb-1.5">Select Email List</label>
-                    <Select value={selectedListId} onValueChange={setSelectedListId}>
-                      <SelectTrigger className="text-[13px]">
-                        <SelectValue placeholder="Choose a list..." />
+              {showCc && (
+                <div className="flex items-start gap-2 ml-4 pb-2">
+                  <span className="mt-1.5 text-xs text-gray-400 shrink-0">CC:</span>
+                  <div className="flex flex-1 flex-wrap items-center gap-1.5">
+                    {cc.map(email => (
+                      <span key={email} className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-sm font-medium text-slate-700">
+                        {email}
+                        <button type="button" onClick={() => removeCc(email)} className="rounded-full p-0.5 text-slate-400 hover:bg-slate-200 hover:text-slate-600"><X className="h-3 w-3" /></button>
+                      </span>
+                    ))}
+                    <input type="text" value={ccInput} onChange={e => setCcInput(e.target.value)} onKeyDown={handleCcKeyDown} onBlur={addCc} placeholder="Add CC..." className="min-w-[100px] flex-1 bg-transparent py-1 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none" />
+                    <Select value="" onValueChange={(v) => { const list = emailLists.find(l => l.id === v); if (list) { const emails = list.emails.split(/,\s*/).filter(Boolean); setCc(prev => [...new Set([...prev, ...emails])]); } }}>
+                      <SelectTrigger className="h-6 text-[10px] px-1.5 border-0 shadow-none text-gray-400 hover:text-gray-600 w-auto gap-0">
+                        <SelectValue placeholder="+List" />
                       </SelectTrigger>
                       <SelectContent>
-                        {emailLists.length === 0 ? (
-                          <div className="px-3 py-4 text-center text-[12px] text-gray-400">No email lists found. Create one first.</div>
-                        ) : (
-                          emailLists.map(list => (
-                            <SelectItem key={list.id} value={list.id} className="text-[13px]">
-                              {list.name} ({list.count} emails)
-                            </SelectItem>
-                          ))
-                        )}
+                        {emailLists.map(list => (
+                          <SelectItem key={list.id} value={list.id} className="text-xs">{list.name} ({list.count})</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
-                    {selectedList && (
-                      <p className="text-[11px] text-gray-400 mt-1.5">{selectedList.count} recipients in this list</p>
-                    )}
                   </div>
-                ) : (
-                  <div>
-                    <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wider block mb-1.5">Paste Emails</label>
-                    <Textarea
-                      value={customEmails}
-                      onChange={e => setCustomEmails(e.target.value)}
-                      placeholder={`Paste emails here, one per line or comma-separated:\nemail1@example.com\nemail2@example.com`}
-                      rows={6}
-                      className="text-[13px]"
-                    />
-                    {customEmails.trim() && (
-                      <p className="text-[11px] text-gray-400 mt-1.5">
-                        {customEmails.split(/[\n,]+/).map(e => e.trim()).filter(e => e.includes('@')).length} valid emails detected
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {/* BCC / CC Toggles */}
-                <div className="flex gap-2 pt-1">
-                  <button
-                    onClick={() => setShowBcc(!showBcc)}
-                    className={cn(
-                      "flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-md border transition-colors",
-                      showBcc ? 'bg-primary text-primary-foreground border-primary' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
-                    )}
-                  >
-                    {showBcc ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />}
-                    BCC
-                  </button>
-                  <button
-                    onClick={() => setShowCc(!showCc)}
-                    className={cn(
-                      "flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-md border transition-colors",
-                      showCc ? 'bg-primary text-primary-foreground border-primary' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
-                    )}
-                  >
-                    {showCc ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />}
-                    CC
-                  </button>
                 </div>
-
-                {showBcc && (
-                  <div>
-                    <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wider block mb-1.5">BCC Emails</label>
-                    <Textarea
-                      value={bccEmails}
-                      onChange={e => setBccEmails(e.target.value)}
-                      placeholder="bcc@example.com"
-                      rows={2}
-                      className="text-[13px]"
-                    />
-                  </div>
-                )}
-
-                {showCc && (
-                  <div>
-                    <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wider block mb-1.5">CC Emails</label>
-                    <Textarea
-                      value={ccEmails}
-                      onChange={e => setCcEmails(e.target.value)}
-                      placeholder="cc@example.com"
-                      rows={2}
-                      className="text-[13px]"
-                    />
-                  </div>
-                )}
-
-                <div className="flex gap-2 pt-2">
-                  <Button variant="outline" onClick={() => setStep('setup')} className="flex-1">
-                    Back
-                  </Button>
-                  <Button
-                    onClick={handleStartProcessing}
-                    disabled={recipientMode === 'list' ? !selectedListId : !customEmails.trim()}
-                    className="flex-1"
-                  >
-                    Process
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {/* Step 3: Processing */}
-            {step === 'processing' && (
-              <div className="py-4">
-                <div className="sm:mx-auto sm:max-w-md">
-                  <ul className="space-y-6">
-                    {progressSteps.map((s, stepIdx) => (
-                      <li className="relative flex gap-x-3" key={s.id}>
-                        <div className={cn(
-                          'absolute top-0 left-0 flex w-6 justify-center',
-                          stepIdx === progressSteps.length - 1 ? 'h-6' : '-bottom-6'
-                        )}>
-                          <span aria-hidden className="w-px bg-border" />
-                        </div>
-                        <div className="flex items-start space-x-2.5">
-                          <div className="relative flex size-6 flex-none items-center justify-center bg-background">
-                            {s.type === 'done' ? (
-                              <IconCheck aria-hidden className="size-5 text-primary" />
-                            ) : s.type === 'in progress' ? (
-                              <div aria-hidden className="size-2.5 rounded-full bg-primary ring-4 ring-background" />
-                            ) : (
-                              <div aria-hidden className="size-3 rounded-full border border-border bg-background ring-4 ring-background" />
-                            )}
-                          </div>
-                          <div>
-                            <p className="mt-0.5 font-medium text-foreground text-sm">
-                              {s.title}{' '}
-                              <span className="font-normal text-muted-foreground/60">
-                                &#8729; {s.activityTime}
-                              </span>
-                            </p>
-                            <p className="mt-0.5 text-muted-foreground text-sm leading-6">
-                              {s.description}
-                            </p>
-                          </div>
-                        </div>
-                      </li>
+              )}
+              {showBcc && (
+                <div className="flex items-start gap-2 ml-4 pb-2">
+                  <span className="mt-1.5 text-xs text-gray-400 shrink-0">BCC:</span>
+                  <div className="flex flex-1 flex-wrap items-center gap-1.5">
+                    {bcc.map(email => (
+                      <span key={email} className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-sm font-medium text-slate-700">
+                        {email}
+                        <button type="button" onClick={() => removeBcc(email)} className="rounded-full p-0.5 text-slate-400 hover:bg-slate-200 hover:text-slate-600"><X className="h-3 w-3" /></button>
+                      </span>
                     ))}
-                  </ul>
-                </div>
-              </div>
-            )}
-
-            {/* Step 4: Confirmation */}
-            {step === 'confirmation' && (
-              <div className="space-y-5">
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-start gap-3">
-                  <div className="size-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
-                    <IconCheck className="size-5 text-green-600" />
-                  </div>
-                  <div>
-                    <p className="text-[14px] font-semibold text-green-800">Campaign processed successfully</p>
-                    <p className="text-[12px] text-green-600 mt-0.5">
-                      {parsedEmails.length} recipients validated and ready to send
-                    </p>
+                    <input type="text" value={bccInput} onChange={e => setBccInput(e.target.value)} onKeyDown={handleBccKeyDown} onBlur={addBcc} placeholder="Add BCC..." className="min-w-[100px] flex-1 bg-transparent py-1 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none" />
+                    <Select value="" onValueChange={(v) => { const list = emailLists.find(l => l.id === v); if (list) { const emails = list.emails.split(/,\s*/).filter(Boolean); setBcc(prev => [...new Set([...prev, ...emails])]); } }}>
+                      <SelectTrigger className="h-6 text-[10px] px-1.5 border-0 shadow-none text-gray-400 hover:text-gray-600 w-auto gap-0">
+                        <SelectValue placeholder="+List" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {emailLists.map(list => (
+                          <SelectItem key={list.id} value={list.id} className="text-xs">{list.name} ({list.count})</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
+              )}
+            </div>
 
-                <div className="bg-gray-50 rounded-lg border border-gray-100 p-4 space-y-3">
-                  <h4 className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">Campaign Preview</h4>
-                  <div className="grid grid-cols-2 gap-3 text-[13px]">
-                    <div><span className="text-gray-400 block text-[11px]">Name</span><span className="text-gray-700 font-medium">{name}</span></div>
-                    <div><span className="text-gray-400 block text-[11px]">Status</span><span className="text-gray-700">Draft</span></div>
-                    <div className="col-span-2"><span className="text-gray-400 block text-[11px]">Objective</span><span className="text-gray-700">{objective || '—'}</span></div>
-                  </div>
+            <div className="flex items-center gap-2 border-b pb-2">
+              <span className="text-xs text-gray-400 shrink-0">Subject:</span>
+              <input type="text" value={subject} onChange={e => setSubject(e.target.value)} placeholder="Campaign subject" className="flex-1 bg-transparent text-sm font-medium text-slate-800 focus:outline-none" />
+            </div>
+
+            <div>
+              {editor && (
+                <div className="flex items-center gap-1 px-2 py-1">
+                  <button type="button" onClick={() => editor.chain().focus().toggleBold().run()} className={`p-1 rounded hover:bg-slate-100 ${editor.isActive("bold") ? "bg-slate-200" : ""}`}><Bold className="h-3.5 w-3.5" /></button>
+                  <button type="button" onClick={() => editor.chain().focus().toggleItalic().run()} className={`p-1 rounded hover:bg-slate-100 ${editor.isActive("italic") ? "bg-slate-200" : ""}`}><Italic className="h-3.5 w-3.5" /></button>
+                  <button type="button" onClick={() => editor.chain().focus().toggleUnderline().run()} className={`p-1 rounded hover:bg-slate-100 ${editor.isActive("underline") ? "bg-slate-200" : ""}`}><UnderlineIcon className="h-3.5 w-3.5" /></button>
+                  <div className="mx-1 h-4 w-px bg-gray-200" />
+                  <button type="button" onClick={() => editor.chain().focus().toggleBulletList().run()} className={`p-1 rounded hover:bg-slate-100 ${editor.isActive("bulletList") ? "bg-slate-200" : ""}`}><List className="h-3.5 w-3.5" /></button>
+                  <button type="button" onClick={() => editor.chain().focus().toggleOrderedList().run()} className={`p-1 rounded hover:bg-slate-100 ${editor.isActive("orderedList") ? "bg-slate-200" : ""}`}><ListOrdered className="h-3.5 w-3.5" /></button>
+                  <div className="mx-1 h-4 w-px bg-gray-200" />
+                  <button type="button" onClick={() => { const url = window.prompt("Enter URL"); if (url) editor.chain().focus().setLink({ href: url }).run() }} className={`p-1 rounded hover:bg-slate-100 ${editor.isActive("link") ? "bg-slate-200" : ""}`}><LinkIcon className="h-3.5 w-3.5" /></button>
                 </div>
-
-                <div className="bg-gray-50 rounded-lg border border-gray-100 p-4">
-                  <h4 className="text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-2">Recipients Preview ({Math.min(parsedEmails.length, 5)} of {parsedEmails.length})</h4>
-                  <div className="space-y-1 max-h-[120px] overflow-y-auto">
-                    {parsedEmails.slice(0, 5).map((email, i) => (
-                      <div key={i} className="text-[12px] text-gray-600 py-0.5">{email}</div>
-                    ))}
-                    {parsedEmails.length > 5 && (
-                      <div className="text-[11px] text-gray-400 pt-1">...and {parsedEmails.length - 5} more</div>
-                    )}
-                  </div>
-                </div>
-
-                {(showBcc || showCc) && (
-                  <div className="bg-gray-50 rounded-lg border border-gray-100 p-4">
-                    <h4 className="text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-2">Additional Recipients</h4>
-                    <div className="text-[13px] space-y-1">
-                      {showBcc && bccEmails && <div><span className="text-gray-400">BCC:</span> <span className="text-gray-600">{bccEmails}</span></div>}
-                      {showCc && ccEmails && <div><span className="text-gray-400">CC:</span> <span className="text-gray-600">{ccEmails}</span></div>}
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex gap-2 pt-1">
-                  <Button variant="outline" onClick={() => handleFinalize('draft')} className="flex-1">
-                    Save as Draft
-                  </Button>
-                  <Button onClick={() => handleFinalize('sending')} className="flex-1">
-                    <Send className="size-3.5" /> Launch Campaign
-                  </Button>
-                </div>
-              </div>
-            )}
+              )}
+              <div className="min-h-[200px]"><EditorContent editor={editor} /></div>
+            </div>
           </div>
 
-          <SheetFooter className="px-6 pb-6 pt-2 border-t border-gray-100">
-            <SheetClose asChild>
-              <Button variant="outline">Cancel</Button>
-            </SheetClose>
+          <SheetFooter className="px-5 py-3 border-t shrink-0 flex flex-col gap-2">
+            {saveError && <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{saveError}</div>}
+            <div className="flex items-center justify-between">
+              <SheetClose asChild><Button variant="outline" size="sm">Cancel</Button></SheetClose>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" onClick={() => handleSave('draft')} disabled={!name.trim() || recipients.length === 0 || saving}>Save as Draft</Button>
+                <Button size="sm" onClick={() => handleSave('sending')} disabled={!name.trim() || recipients.length === 0 || saving}>
+                  {saving ? <><Loader2 className="size-3.5 animate-spin" /> Saving...</> : <><Send className="size-3.5" /> Launch Campaign</>}
+                </Button>
+              </div>
+            </div>
           </SheetFooter>
         </SheetContent>
       </Sheet>

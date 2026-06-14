@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { Agent, Runner, tool } from "@openai/agents";
 import { OpenAIProvider, setOpenAIAPI } from "@openai/agents-openai";
 import { z } from "zod";
+import { like, eq, or } from "drizzle-orm";
 import { verifyToken } from "@/lib/auth";
 import { getDb } from "@/db";
 import { emailTemplates } from "@/db/schema";
@@ -57,6 +58,45 @@ export async function POST(req: NextRequest) {
         execute: async () => "Recipients captured.",
       });
 
+      const searchTemplatesTool = tool({
+        name: "search_templates",
+        description: "Search email templates by name, subject, or body content. Use this to find a suitable template for the user's request (e.g. welcome email, inquiry, follow-up, etc.).",
+        parameters: z.object({
+          q: z.string().describe("Search query to match against template name, subject, or body"),
+        }),
+        strict: true,
+        execute: async ({ q }) => {
+          const db = await getDb();
+          const results = await db.select({
+            id: emailTemplates.id,
+            name: emailTemplates.name,
+            subject: emailTemplates.subject,
+            createdAt: emailTemplates.createdAt,
+          }).from(emailTemplates).where(
+            or(
+              like(emailTemplates.name, `%${q}%`),
+              like(emailTemplates.subject, `%${q}%`),
+              like(emailTemplates.body, `%${q}%`),
+            )
+          ).limit(20);
+          return JSON.stringify(results.length > 0 ? results : []);
+        },
+      });
+
+      const getTemplateTool = tool({
+        name: "get_template",
+        description: "Get a full email template by ID, including the name, subject, and HTML body. Call this after search_templates when the user wants to use a specific template as a base for their email.",
+        parameters: z.object({
+          id: z.string().describe("The template ID to fetch"),
+        }),
+        strict: true,
+        execute: async ({ id }) => {
+          const db = await getDb();
+          const template = await db.select().from(emailTemplates).where(eq(emailTemplates.id, id)).limit(1);
+          return JSON.stringify(template[0] || null);
+        },
+      });
+
       const getUserInfoTool = tool({
         name: "get_user_info",
         description: "Get the current user's info (name, email, etc.). Call this to personalize the email with the sender's name.",
@@ -98,15 +138,16 @@ RULES:
 2. Use simple <p> tags for paragraphs. Do NOT insert blank <p><br></p> between paragraphs — just consecutive <p> tags.
 3. STRICT RULE: The email body MUST NOT contain any sign-off, closing line, signature block, or farewell. NO "Best regards", "Sincerely", "Best", "Thanks", "Cheers", "Respectfully", your name, or company name. NO lines starting with "--" or "---". The body must end abruptly after the last content paragraph — do NOT add anything after the final message. A signature is appended automatically by the system.
 4. You can call get_user_info to get your name and email.
-5. After writing, ask if they'd like to modify anything.
-6. Use the set_email tool to fill in the compose form.
-7. Use the set_recipients tool to set recipient emails.
-8. If no recipient is set yet (To field is empty), ask the user who the recipient should be before writing the email. Do not make up recipient addresses.`,
+5. Use search_templates and get_template to find and use email templates when relevant. Check templates first before writing from scratch.
+6. After writing, ask if they'd like to modify anything.
+7. Use the set_email tool to fill in the compose form.
+8. Use the set_recipients tool to set recipient emails.
+9. If no recipient is set yet (To field is empty), ask the user who the recipient should be before writing the email. Do not make up recipient addresses.`,
           model: "openai/gpt-5-nano",
           modelSettings: {
             reasoning: { effort: EFFORTS.includes(reasoningEffort as any) ? reasoningEffort : "low" },
           },
-          tools: [setEmailTool, setRecipientsTool, getUserInfoTool],
+          tools: [setEmailTool, setRecipientsTool, getUserInfoTool, searchTemplatesTool, getTemplateTool],
         });
 
         const result = await runner.run(agent, messages, { stream: true });

@@ -17,28 +17,35 @@ const DialogClose = DialogPrimitive.Close
 const DialogOverlay = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Overlay>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>
->(({ className, ...props }, ref) => (
+>(({ className, ...props }, ref) => {
+  const noAnim = (props as any)["data-no-animate"] === "true";
+  return (
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      "fixed inset-0 z-50 bg-black/80 data-[state=open]:animate-[overlay-in_0.2s_ease-out] data-[state=closed]:animate-[overlay-out_0.2s_ease-in]",
+      "fixed inset-0 z-50 bg-black/80",
+      noAnim ? "animate-none" : "data-[state=open]:animate-[overlay-in_0.2s_ease-out] data-[state=closed]:animate-[overlay-out_0.2s_ease-in]",
       className
     )}
     {...props}
   />
-))
+  );
+})
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
 
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => (
+>(({ className, children, ...props }, ref) => {
+  const noAnim = (props as any)["data-no-animate"] === "true";
+  return (
   <DialogPortal>
-    <DialogOverlay />
+    <DialogOverlay data-no-animate={noAnim ? "true" : undefined} />
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg sm:rounded-lg data-[state=open]:animate-[dialog-in_0.2s_ease-out] data-[state=closed]:animate-[dialog-out_0.2s_ease-in]",
+        "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg sm:rounded-lg",
+        noAnim ? "animate-none" : "data-[state=open]:animate-[dialog-in_0.2s_ease-out] data-[state=closed]:animate-[dialog-out_0.2s_ease-in]",
         className
       )}
       {...props}
@@ -50,7 +57,8 @@ const DialogContent = React.forwardRef<
       </DialogPrimitive.Close>
     </DialogPrimitive.Content>
   </DialogPortal>
-))
+  );
+})
 DialogContent.displayName = DialogPrimitive.Content.displayName
 
 const DialogHeader = ({

@@ -272,7 +272,7 @@ export default function WebsitesPage() {
           </Button></Can>
         </div>
       </div>
-      <div className="bg-white border border-[#e9ecef] rounded-[10px] shadow-sm overflow-hidden">
+      <div className="bg-white border border-[#e9ecef] rounded-[10px] shadow-sm overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="border-b border-gray-100 bg-[#fafafa]">
@@ -336,7 +336,7 @@ export default function WebsitesPage() {
 
       {/* Explore Dialog */}
       <Dialog open={showExplore} onOpenChange={(o) => { if (!o) { setShowExplore(false); setExploreSteps([]); setExploreResults([]); setExploreError(''); setAddingWebsites(new Map()); } }}>
-        <DialogContent className="sm:max-w-2xl !max-w-[95vw] w-full max-h-[90vh] overflow-y-auto [&>div]:overflow-hidden">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" data-no-animate="true">
           <DialogHeader>
             <DialogTitle className="text-[16px] font-semibold text-[#111827] flex items-center gap-2">
               <Globe className="size-4" /> Explore Websites
@@ -493,8 +493,8 @@ export default function WebsitesPage() {
                                 <Loader className="size-3 animate-spin" /> Adding...
                               </span>
                             ) : addState.status === 'crawling' ? (
-                              <span className="text-[11px] font-medium px-2 py-1 rounded bg-blue-50 text-blue-600 border border-blue-200 flex items-center gap-1 shrink-0 animate-pulse">
-                                <Loader className="size-3 animate-spin" /> Crawling...
+                              <span className="text-[11px] font-medium px-2 py-1 rounded bg-blue-50 text-blue-600 border border-blue-200 flex items-center gap-1 shrink-0">
+                                <Loader className="size-3" /> Crawling...
                               </span>
                             ) : addState.status === 'done' ? (
                               <span className="text-[11px] font-medium px-2 py-1 rounded bg-green-50 text-green-700 border border-green-200 shrink-0">Added</span>
@@ -586,7 +586,7 @@ export default function WebsitesPage() {
                             <span className={`text-sm font-medium ${isDone ? 'text-green-700' : isRunning ? 'text-blue-700' : 'text-gray-400'}`}>
                               {s.title}
                             </span>
-                            {isRunning && <span className="text-[11px] text-blue-500 animate-pulse">Running now...</span>}
+                            {isRunning && <span className="text-[11px] text-blue-500">Running now...</span>}
                             {isDone && <span className="text-[11px] text-green-500">Done</span>}
                           </div>
                           <p className={`text-xs mt-0.5 ${isDone || isRunning ? 'text-gray-500' : 'text-gray-300'}`}>
@@ -625,7 +625,7 @@ export default function WebsitesPage() {
 
 function scrapeStatusBadge(status?: string) {
   if (!status || status === 'idle') return null;
-  if (status === 'scraping') return <span className="text-[11px] font-medium px-1.5 py-0.5 rounded border bg-blue-50 text-blue-600 border-blue-200 animate-pulse">Crawling...</span>;
+  if (status === 'scraping') return <span className="text-[11px] font-medium px-1.5 py-0.5 rounded border bg-blue-50 text-blue-600 border-blue-200">Crawling...</span>;
   if (status === 'done') return <span className="text-[11px] font-medium px-1.5 py-0.5 rounded border bg-green-50 text-green-700 border-green-200">Done</span>;
   if (status === 'error') return <span className="text-[11px] font-medium px-1.5 py-0.5 rounded border bg-red-50 text-red-600 border-red-200">Error</span>;
   return null;

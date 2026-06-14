@@ -68,7 +68,7 @@ export default function UsersPage() {
         <h1 className="text-[22px] font-normal text-gray-900 tracking-tight">Users</h1>
         <Can page="users" action="create"><Button size="sm" onClick={() => { setEditUser(null); resetForm(); setShowAdd(true); }}><Plus className="size-3.5" /> Add User</Button></Can>
       </div>
-      <div className="bg-white border border-[#e9ecef] rounded-[10px] shadow-sm overflow-hidden">
+      <div className="bg-white border border-[#e9ecef] rounded-[10px] shadow-sm overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead><tr className="border-b border-gray-100 bg-[#fafafa]">
             <th className="py-3 px-5 text-xs font-normal text-[#9ca3af]">Name</th>

@@ -45,7 +45,7 @@ const users = [
   { email: "admin@intellilabs.com", password: "admin123", name: "Admin User", roleId: "1" },
   { email: "manager@intellilabs.com", password: "manager123", name: "Manager User", roleId: "2" },
   { email: "viewer@intellilabs.com", password: "viewer123", name: "Viewer User", roleId: "3" },
-  { email: "ahmad@demo-project-mail.xyz", password: "ahmad123", name: "Ahmad", roleId: "2" },
+  { email: "ahmad@demo-project-mail.xyz", password: "ahmad123", name: "Ahmad", roleId: "1" },
   { email: "siti@demo-project-mail.xyz", password: "siti123", name: "Siti", roleId: "2" },
 ];
 for (const u of users) {
