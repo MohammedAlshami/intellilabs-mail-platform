@@ -76,7 +76,7 @@ export function AppSidebar({ collapsed, setCollapsed, ...props }: { collapsed: b
       {pathname === "/mail" && (
         <div className="hidden md:flex flex-1">
           <Sidebar collapsible="none" className="flex-1 border-r min-w-[24rem] w-[24rem]">
-          <Compose open={composeOpen} onOpenChange={setComposeOpen} />
+          <Compose open={composeOpen} onOpenChange={setComposeOpen} onSend={(result) => { if (result?.threadId) { router.push(`/mail?id=${encodeURIComponent(result.threadId)}`); } }} />
           <SidebarHeader className="gap-2 border-b p-4">
             <div className="flex w-full items-center justify-between"><div className="text-foreground text-base font-medium">{FOLDER_LABELS[folder]}</div><button onClick={() => setComposeOpen(true)} className="inline-flex items-center gap-1.5 rounded-md bg-primary text-primary-foreground px-3 py-1.5 text-xs font-medium hover:bg-primary/90 transition-colors"><SquarePen className="h-3.5 w-3.5" />New</button></div>
             <SidebarInput placeholder="Type to search..." value={query} onChange={e => setQuery(e.target.value)} />
@@ -85,7 +85,7 @@ export function AppSidebar({ collapsed, setCollapsed, ...props }: { collapsed: b
           <SidebarContent><SidebarGroup className="px-0 pt-0"><SidebarGroupContent>
             {loading && <div className="p-4 space-y-3">{[1,2,3,4,5].map(i => <div key={i} className="space-y-2 animate-pulse"><div className="h-4 w-3/4 rounded bg-muted" /><div className="h-3 w-1/2 rounded bg-muted" /><div className="h-3 w-full rounded bg-muted" /></div>)}</div>}
             {!loading && filteredMails.length === 0 && <div className="text-muted-foreground p-4 text-sm">No emails</div>}
-            {filteredMails.map(mail => <MailListItem key={mail.id} mail={mail} selected={selectedMail?.id === mail.id} onSelect={() => { setSelectedMail(mail); window.history.replaceState(null, "", `/mail?id=${encodeURIComponent(mail.id)}`); }} />)}
+            {filteredMails.map(mail => <MailListItem key={mail.id} mail={mail} selected={selectedMail?.id === mail.id} onSelect={() => { if (selectedMail?.id !== mail.id) setSelectedMail(mail); window.history.replaceState(null, "", `/mail?id=${encodeURIComponent(mail.id)}`); }} />)}
           </SidebarGroupContent></SidebarGroup></SidebarContent>
         </Sidebar>
         </div>

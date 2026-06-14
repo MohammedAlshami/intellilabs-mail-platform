@@ -24,6 +24,7 @@ export async function POST(req: NextRequest) {
     const tid = threadId || sentId;
     await db.insert(emails).values({
       id: sentId, account: fromAccount, messageId: sentId,
+      emailengineId: actualMessageId || "",
       fromName: fromAccount, fromEmail,
       toEmail: to, subject, bodyText: text,
       folder: "SENT", seen: true, direction: "outbound",

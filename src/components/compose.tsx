@@ -18,7 +18,7 @@ interface Attachment { name: string; contentType: string; content: string }
 interface ComposeProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onSend?: () => void
+  onSend?: (result?: { messageId: string; threadId: string }) => void
   initialTo?: string
   initialSubject?: string
   initialText?: string
@@ -79,7 +79,7 @@ export function Compose({ open, onOpenChange, onSend, initialTo, initialSubject,
   React.useEffect(() => {
     if (initialSubject) setSubject(initialSubject)
     if (initialText && editor) editor.commands.setContent(initialText)
-    if (open && !replyMode && !signatureHtml) {
+    if (open && !signatureHtml) {
       fetch("/api/email-signatures").then(r => r.json()).then((sigs: any[]) => {
         const def = sigs.find((s: any) => s.isDefault)
         if (def && def.content) setSignatureHtml(def.content.replace(/\n/g, "<br>"))
@@ -139,7 +139,8 @@ export function Compose({ open, onOpenChange, onSend, initialTo, initialSubject,
   const handleSend = async () => {
     if (recipients.length === 0) return
     setSending(true)
-    const text = editor?.getText() || ""
+    let text = editor?.getText() || ""
+    if (signatureHtml) text += "\n\n--\n" + signatureHtml.replace(/<br\s*\/?>/g, "\n").replace(/<[^>]*>/g, "")
     try {
       const body: any = { to: recipients.join(", "), cc: cc.join(", "), bcc: bcc.join(", "), subject, text, attachments: attachments.length > 0 ? attachments : undefined };
       if (threadId) body.threadId = threadId;
@@ -149,12 +150,13 @@ export function Compose({ open, onOpenChange, onSend, initialTo, initialSubject,
         body: JSON.stringify(body),
       })
       if (!res.ok) throw new Error("Failed")
+      const result = await res.json()
       setRecipients([])
       setSubject("")
       setAttachments([])
       if (editor) editor.commands.setContent("")
       onOpenChange(false)
-      onSend?.()
+      onSend?.(result)
     } catch (err) { console.error(err) }
     finally { setSending(false) }
   }
@@ -178,7 +180,7 @@ export function Compose({ open, onOpenChange, onSend, initialTo, initialSubject,
         const { done, value } = await reader.read()
         if (done) break
         full += dec.decode(value, { stream: true })
-        const html = "<p>" + full.replace(/\n{2,}/g, "</p><p>").replace(/\n/g, "<br>") + "</p>"
+        const html = "<p>" + full.replace(/\n{3,}/g, "\n\n").replace(/\n{2,}/g, "</p><p>").replace(/\n/g, "<br>") + "</p>"
         editor.commands.setContent(html)
       }
       setAiPrompt("")
@@ -348,6 +350,7 @@ export function Compose({ open, onOpenChange, onSend, initialTo, initialSubject,
           onClose={() => setShowAiPanel(false)}
           currentContent={editor?.getHTML() || ""}
           currentSubject={subject}
+          currentRecipients={recipients}
           onUpdateContent={(html) => editor?.commands.setContent(html)}
           onUpdateSubject={(s) => setSubject(s)}
           onUpdateRecipients={(to, ccVal, bccVal) => { setRecipients(to); setCc(ccVal ? ccVal.split(",").map(s => s.trim()).filter(Boolean) : []); setBcc(bccVal ? bccVal.split(",").map(s => s.trim()).filter(Boolean) : []); }}

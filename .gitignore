@@ -45,6 +45,9 @@ data.db
 # logs
 preview_*.log
 
+# uploads
+/uploads
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

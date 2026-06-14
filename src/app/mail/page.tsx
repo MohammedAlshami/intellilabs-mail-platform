@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState, useCallback, useRef, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Paperclip, Download, Sparkles, ThumbsUp, ThumbsDown, Minus, Send, X, Check } from "lucide-react";
 import MainLayout from "@/components/main-layout";
 import { useMail, type Mail, type Attachment } from "@/components/sidebar-04/mail-context";
@@ -210,7 +210,7 @@ function MailPreview({ onSend, onAiAssistantClick }: { onSend?: () => void; onAi
             <span className="text-xs font-medium text-muted-foreground">Reply</span>
             <button onClick={() => setReplyOpen(false)} className="text-muted-foreground hover:text-foreground p-1 rounded hover:bg-muted transition-colors"><X className="h-3.5 w-3.5" /></button>
           </div>
-          <Compose open={true} onOpenChange={(open) => { setReplyOpen(open); if (!open) setAiComposeData(null); }} onSend={() => { setAiComposeData(null); onSend?.(); }} initialTo={aiComposeData?.to || selectedMail.email} initialSubject={aiComposeData?.subject || `Re: ${selectedMail.subject}`} initialText={aiComposeData?.text || (usingAiReply && mailAnalysis ? mailAnalysis.suggestedReply : undefined)} replyMode inline threadId={aiComposeData?.threadId || selectedMail.threadId || undefined} onAiAssistantClick={onAiAssistantClick} />
+          <Compose open={true} onOpenChange={(open) => { setReplyOpen(open); if (!open) setAiComposeData(null); }} onSend={(result) => { setAiComposeData(null); onSend?.(); }} initialTo={aiComposeData?.to || selectedMail.email} initialSubject={aiComposeData?.subject || `Re: ${selectedMail.subject}`} initialText={aiComposeData?.text || (usingAiReply && mailAnalysis ? mailAnalysis.suggestedReply : undefined)} replyMode inline threadId={aiComposeData?.threadId || selectedMail.threadId || undefined} onAiAssistantClick={onAiAssistantClick} />
         </div>
       )}
       {previewAtt && <AttachmentPreview attachment={previewAtt} messageId={selectedMail.id} open={!!previewAtt} onOpenChange={open => { if (!open) setPreviewAtt(null); }} />}
@@ -223,8 +223,8 @@ const FOLDER_API_PATH: Record<string, string> = { inbox: "INBOX", sent: "\\Sent"
 function MailApp() {
   const { setMails, setLoading, folder, setSelectedMail, selectedMail } = useMail();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const mailIdFromUrl = searchParams.get("id");
-  const initialLoad = useRef(true);
 
   const refreshMails = useCallback(() => {
     const path = FOLDER_API_PATH[folder] || "INBOX";
@@ -232,9 +232,9 @@ function MailApp() {
   }, [folder, setMails]);
 
   // Initial load: fetch mails
-  useEffect(() => { refreshMails(); initialLoad.current = false; setLoading(false); }, []);
+  useEffect(() => { refreshMails(); setLoading(false); }, []);
 
-  // If URL has a thread ID on initial load, directly fetch thread data
+  // Fetch thread data when URL has an id param
   useEffect(() => {
     if (!mailIdFromUrl) return;
     fetch(`/api/mails?threadId=${encodeURIComponent(mailIdFromUrl)}`)
@@ -254,23 +254,34 @@ function MailApp() {
             threadMessages: msgs,
             messageCount: msgs.length,
           });
-          // Also mark it in the URL even if it was already there
           window.history.replaceState(null, "", `/mail?id=${encodeURIComponent(mailIdFromUrl)}`);
         } else {
-          // Thread not found by ID - try matching as a regular mail ID
           fetch(`/api/mails/${encodeURIComponent(mailIdFromUrl)}`).then(r => r.json()).then(m => {
             if (m && !m.error) setSelectedMail({ id: mailIdFromUrl, threadId: m.threadId || null, name: m.from?.name || m.fromName || "", email: m.from?.email || m.fromEmail || "", subject: m.subject || "", date: m.receivedAt || "", teaser: (m.bodyText || "").substring(0, 300), text: m.bodyText || "", attachments: m.attachments, messageCount: 1 });
           }).catch(() => {});
         }
       }).catch(console.error);
-  }, []);
+  }, [mailIdFromUrl]);
 
-  // Refresh on folder change (no URL restore, no global loading spinner)
+  // Refresh on folder change
   useEffect(() => { if (folder) refreshMails(); }, [folder]);
 
   const { toggle: toggleAiPanel } = useAiPanel();
 
-  return <MailPreview onSend={() => { refreshMails(); if (selectedMail?.threadId) { fetch(`/api/mails?threadId=${encodeURIComponent(selectedMail.threadId)}`).then(r => r.json()).then(d => { const msgs = d.messages || []; if (msgs.length > 0) { const latest = msgs[msgs.length - 1]; setSelectedMail(prev => prev ? { ...prev, text: latest.text, threadMessages: msgs } : prev); } }); } }} onAiAssistantClick={toggleAiPanel} />;
+  const handleMailPreviewSend = useCallback(() => {
+    refreshMails();
+    if (selectedMail?.threadId) {
+      fetch(`/api/mails?threadId=${encodeURIComponent(selectedMail.threadId)}`).then(r => r.json()).then(d => {
+        const msgs = d.messages || [];
+        if (msgs.length > 0) {
+          const latest = msgs[msgs.length - 1];
+          setSelectedMail(prev => prev ? { ...prev, text: latest.text, threadMessages: msgs } : prev);
+        }
+      });
+    }
+  }, [selectedMail?.threadId, refreshMails, setSelectedMail]);
+
+  return <MailPreview onSend={handleMailPreviewSend} onAiAssistantClick={toggleAiPanel} />;
 }
 
 export default function Page() { return <MainLayout><Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Loading...</div>}><MailApp /></Suspense></MainLayout>; }

@@ -37,12 +37,13 @@ interface ComposeAiPanelProps {
   onClose: () => void;
   currentContent: string;
   currentSubject: string;
+  currentRecipients?: string[];
   onUpdateContent: (html: string) => void;
   onUpdateSubject: (subject: string) => void;
   onUpdateRecipients?: (to: string[], cc?: string, bcc?: string) => void;
 }
 
-export function ComposeAiPanel({ onClose, currentContent, currentSubject, onUpdateContent, onUpdateSubject, onUpdateRecipients }: ComposeAiPanelProps) {
+export function ComposeAiPanel({ onClose, currentContent, currentSubject, currentRecipients, onUpdateContent, onUpdateSubject, onUpdateRecipients }: ComposeAiPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -64,7 +65,8 @@ export function ComposeAiPanel({ onClose, currentContent, currentSubject, onUpda
     setStreamingToolCall(null);
 
     try {
-      const contextMsg = `Current email - Subject: "${currentSubject}" | Body: "${currentContent}"`;
+      const hasRecipients = currentRecipients && currentRecipients.length > 0;
+      const contextMsg = `Current email - Subject: "${currentSubject}" | Body: "${currentContent}" | Recipients: ${hasRecipients ? currentRecipients!.join(", ") : "NONE (not set yet)"}`;
       const convMessages = [
         { role: "system", content: `You are a compose email assistant. ${contextMsg}
 

@@ -75,21 +75,15 @@ export async function POST(req: NextRequest) {
 
 ${userInfoNote}
 
-FORMAT EXAMPLE:
-<p>Dear [Name],</p>
-<p><br></p>
-<p>I hope you're doing well...</p>
-<p><br></p>
-<p>Thank you for your understanding.</p>
-
 RULES:
 1. Write proper, detailed, formal emails with a warm tone.
-2. Use the format above: each paragraph followed by an empty paragraph <p><br></p> for spacing. After the last paragraph, do NOT add a trailing <p><br></p>.
+2. Use simple <p> tags for paragraphs. Do NOT insert blank <p><br></p> between paragraphs — just consecutive <p> tags.
 3. NEVER include any sign-off like "Best regards" or "Sincerely" or "[Your Name]" in the body. The signature is added separately.
 4. You can call get_user_info to get your name and email.
 5. After writing, ask if they'd like to modify anything.
 6. Use the set_email tool to fill in the compose form.
-7. Use the set_recipients tool to set recipient emails.`,
+7. Use the set_recipients tool to set recipient emails.
+8. If no recipient is set yet (To field is empty), ask the user who the recipient should be before writing the email. Do not make up recipient addresses.`,
           model: "openai/gpt-5-nano",
           modelSettings: {
             reasoning: { effort: EFFORTS.includes(reasoningEffort as any) ? reasoningEffort : "low" },

@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
       if (!content) return NextResponse.json({ ok: true });
       console.log("MSG NEW:", account, msgData.path, content.subject, "textType:", typeof content.text, "htmlType:", typeof content.html);
       const db = await getDb(); const emailId = uuidv4(); const now = new Date().toISOString();
-      const existing = await db.select().from(emails).where(eq(emails.emailengineId, messageId)).limit(1);
+      const existing = await db.select().from(emails).where(or(eq(emails.emailengineId, messageId), eq(emails.messageId, messageId))).limit(1);
       if (existing.length > 0) return NextResponse.json({ ok: true });
       const existingThreadId = content.threadId || msgData.threadId || null;
       const threadId = existingThreadId || await ensureThread(db, content.subject, content.inReplyTo, content.from.address, content.to?.[0]?.address || "", content.date) || uuidv4();
