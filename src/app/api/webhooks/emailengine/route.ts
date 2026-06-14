@@ -43,9 +43,9 @@ function detectAutoReply(subj: string, text: string, headers: Record<string, str
   return "genuine";
 }
 
-async function ensureThread(db: any, subj: string, inr: string, fe: string, te: string, date: string) {
+async function ensureThread(db: any, subj: string, inr: string, fe: string, te: string, date: string, acct?: string) {
   if (inr) { const p = await db.select().from(emails).where(or(eq(emails.messageId, inr), eq(emails.id, inr))).limit(1); if (p.length > 0 && p[0].threadId) { await db.update(emailThreads).set({ latestDate: date, messageCount: sql`message_count + 1`, updatedAt: new Date().toISOString() }).where(eq(emailThreads.id, p[0].threadId!)); return p[0].threadId; } }
-  const tid = uuidv4(); await db.insert(emailThreads).values({ id: tid, subject: subj, account: "ahmad", latestDate: date, messageCount: 1, participants: JSON.stringify([fe, te].filter(Boolean)), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }); return tid;
+  const tid = uuidv4(); await db.insert(emailThreads).values({ id: tid, subject: subj, account: acct || "ahmad", latestDate: date, messageCount: 1, participants: JSON.stringify([fe, te].filter(Boolean)), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }); return tid;
 }
 
 export async function POST(req: NextRequest) {
@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
       const existing = await db.select().from(emails).where(or(eq(emails.emailengineId, messageId), eq(emails.messageId, messageId))).limit(1);
       if (existing.length > 0) return NextResponse.json({ ok: true });
       const existingThreadId = content.threadId || msgData.threadId || null;
-      const threadId = existingThreadId || await ensureThread(db, content.subject, content.inReplyTo, content.from.address, content.to?.[0]?.address || "", content.date) || uuidv4();
+      const threadId = existingThreadId || await ensureThread(db, content.subject, content.inReplyTo, content.from.address, content.to?.[0]?.address || "", content.date, account) || uuidv4();
       const path = body.path || msgData.path || "INBOX";
       const dbFolder = path === "Sent" || path === "\\Sent" ? "SENT" : "INBOX";
       const direction = dbFolder === "SENT" ? "outbound" : "inbound";

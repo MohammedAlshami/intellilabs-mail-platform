@@ -19,10 +19,13 @@ const provider = new OpenAIProvider({
 
 const runner = new Runner({ modelProvider: provider });
 
+const ACCOUNT_MAP: Record<string, string> = { "ahmad@demo-project-mail.xyz": "ahmad", "siti@demo-project-mail.xyz": "siti", "ryan@demo-project-mail.xyz": "ryan", "nurul@demo-project-mail.xyz": "nurul", "david@demo-project-mail.xyz": "david" };
+
 const TABLE_MAP: Record<string, any> = {
   websites, campaigns, leads, "email-lists": emailLists,
   "sending-history": sendingHistory, "bounce-responses": bounceResponses,
   "removal-list": removalList, "audit-logs": auditLogs, roles, users,
+  emails,
 };
 
 const SEARCH_COLS: Record<string, string[]> = {
@@ -36,6 +39,7 @@ const SEARCH_COLS: Record<string, string[]> = {
   "audit-logs": ["action", "entityType"],
   roles: ["name", "description"],
   users: ["email", "name"],
+  emails: ["subject", "fromName", "fromEmail", "toEmail", "bodyText"],
 };
 
 const PAGES = [
@@ -160,19 +164,26 @@ export async function POST(req: NextRequest) {
         execute: async ({ threadId }) => {
           try {
             const db = await getDb();
-            // Thread IDs are stored WITH angle brackets in DB, try both formats
-            const withBrackets = threadId.includes("<") ? threadId : `<${threadId}>`;
-            const rows = await db.select().from(emails).where(eq(emails.threadId, withBrackets)).orderBy(asc(emails.receivedAt));
-            if (rows.length === 0) {
-              return "Thread not found. The ID might be from a different system or the messages haven't been synced yet.";
+            const tid = threadId.trim();
+            // Try multiple formats: raw, with brackets, with brackets + domain
+            const variants = [tid];
+            if (!tid.includes("<")) variants.push(`<${tid}>`, `<${tid}@demo-project-mail.xyz>`);
+            else variants.push(tid.replace(/[<>]/g, ""));
+            const userAcct = user?.email ? (ACCOUNT_MAP[user.email] || null) : null;
+            for (const v of variants) {
+              const where = userAcct ? and(eq(emails.threadId, v), eq(emails.account, userAcct)) : eq(emails.threadId, v);
+              const rows = await db.select().from(emails).where(where).orderBy(asc(emails.receivedAt));
+              if (rows.length > 0) {
+                return JSON.stringify(rows.map((m: any) => ({
+                  from: m.fromEmail || "",
+                  subject: m.subject || "",
+                  text: (m.bodyText || m.bodyHtml || "").slice(0, 2000),
+                  date: m.receivedAt || "",
+                  folder: m.folder || "",
+                })));
+              }
             }
-            return JSON.stringify(rows.map((m: any) => ({
-              from: m.fromEmail || "",
-              subject: m.subject || "",
-              text: (m.bodyText || m.bodyHtml || "").slice(0, 2000),
-              date: m.receivedAt || "",
-              folder: m.folder || "",
-            })));
+            return "Thread not found. The ID might be from a different system or the messages haven't been synced yet.";
           } catch (e: any) {
             return `Error fetching thread: ${e.message}`;
           }
@@ -251,7 +262,8 @@ RULES:
 - If the user asks you to write or compose an email, use the set_email and set_recipients tools.
 - The current user info is available via get_user_info.
 - Remember conversation context.
-- Be concise and helpful.`,
+- Be concise and helpful.
+- STRICT RULE when composing emails with set_email: The email body MUST NOT contain any sign-off, closing line, signature block, or farewell. This means NO "Best regards", "Sincerely", "Best", "Thanks", "Cheers", "Respectfully", your name, company name, or any line starting with "--" or "---". The body must end abruptly after the last content paragraph. A professional signature is appended automatically by the system — you do NOT need to add one. Violating this rule will result in duplicate signatures.`,
           model: "openai/gpt-5-nano",
           modelSettings: {
             reasoning: { effort: EFFORTS.includes(reasoningEffort as any) ? reasoningEffort : "medium" },

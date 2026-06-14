@@ -43,6 +43,7 @@ function ToolbarButton({ onClick, active, children, label }: { onClick?: () => v
 }
 
 export function Compose({ open, onOpenChange, onSend, initialTo, initialSubject, initialText, replyMode, inline, threadId, onAiAssistantClick }: ComposeProps) {
+  const [userAccount, setUserAccount] = useState("")
   const [recipients, setRecipients] = useState<string[]>(initialTo ? [initialTo] : [])
   const [recipientInput, setRecipientInput] = useState("")
   const [cc, setCc] = useState<string[]>([])
@@ -79,13 +80,21 @@ export function Compose({ open, onOpenChange, onSend, initialTo, initialSubject,
   React.useEffect(() => {
     if (initialSubject) setSubject(initialSubject)
     if (initialText && editor) editor.commands.setContent(initialText)
+    if (open && !userAccount) {
+      fetch("/api/profile").then(r => r.json()).then(d => {
+        if (d.email) {
+          const map: Record<string, string> = { "ahmad@demo-project-mail.xyz": "ahmad", "siti@demo-project-mail.xyz": "siti", "ryan@demo-project-mail.xyz": "ryan", "nurul@demo-project-mail.xyz": "nurul", "david@demo-project-mail.xyz": "david" };
+          setUserAccount(map[d.email] || "")
+        }
+      }).catch(() => {})
+    }
     if (open && !signatureHtml) {
       fetch("/api/email-signatures").then(r => r.json()).then((sigs: any[]) => {
         const def = sigs.find((s: any) => s.isDefault)
         if (def && def.content) setSignatureHtml(def.content.replace(/\n/g, "<br>"))
       }).catch(() => {})
     }
-  }, [initialSubject, initialText, editor, open, replyMode, signatureHtml])
+  }, [initialSubject, initialText, editor, open, replyMode, signatureHtml, userAccount])
 
   const addRecipient = () => {
     const val = recipientInput.trim()
@@ -143,6 +152,7 @@ export function Compose({ open, onOpenChange, onSend, initialTo, initialSubject,
     if (signatureHtml) text += "\n\n--\n" + signatureHtml.replace(/<br\s*\/?>/g, "\n").replace(/<[^>]*>/g, "")
     try {
       const body: any = { to: recipients.join(", "), cc: cc.join(", "), bcc: bcc.join(", "), subject, text, attachments: attachments.length > 0 ? attachments : undefined };
+      if (userAccount) body.account = userAccount;
       if (threadId) body.threadId = threadId;
       const res = await fetch("/api/mails/send", {
         method: "POST",
